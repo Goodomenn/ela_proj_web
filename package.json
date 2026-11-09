@@ -1,0 +1,11 @@
+{
+  "name": "proj-ela-web",
+  "version": "1.0.0",
+  "description": "Daily Sales & Import Manager - Web App (React + Node.js with Firestore & RBAC)",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build"
+  }
+}

@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Sales & Import Manager (Web Edition)</title>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            cenet: {
+              DEFAULT: '#673ab7',
+              dark: '#512da8',
+              light: '#ede7f6'
+            },
+            loop: {
+              DEFAULT: '#009688',
+              dark: '#00796b',
+              light: '#e0f2f1'
+            },
+            audit: {
+              DEFAULT: '#3f51b5',
+              dark: '#303f9f',
+              light: '#e8eaf6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+  <!-- React 18 & ReactDOM 18 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const ROLES = {
+      ADMIN: 'ADMIN',
+      CENET_MANAGER: 'CENET_MANAGER',
+      LOOP_MANAGER: 'LOOP_MANAGER',
+      AUDITOR: 'AUDITOR'
+    };
+
+    const PRESET_USERS = [
+      { id: 'user-admin-1', name: 'System Administrator', email: 'admin@ela.com', role: ROLES.ADMIN, desc: 'Full access to CENET, LOOP & Audit Logs' },
+      { id: 'user-cenet-1', name: 'CENET Operator', email: 'cenet@ela.com', role: ROLES.CENET_MANAGER, desc: 'Restaurant & Lounge access only' },
+      { id: 'user-loop-1', name: 'LOOP Operator', email: 'loop@ela.com', role: ROLES.LOOP_MANAGER, desc: 'Butchery & Liquor access only' },
+      { id: 'user-auditor-1', name: 'Compliance Auditor', email: 'auditor@ela.com', role: ROLES.AUDITOR, desc: 'Read-only access to Audit Logs' }
+    ];
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('CENET');
+      const [currentUser, setCurrentUser] = useState(PRESET_USERS[0]);
+      const [entries, setEntries] = useState([]);
+      const [stats, setStats] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [notification, setNotification] = useState(null);
+
+      const [logFilter, setLogFilter] = useState('ALL');
+
+      const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+      const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+      const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+      const [pendingData, setPendingData] = useState(null);
+      const [delayReasonInput, setDelayReasonInput] = useState('');
+      const [lateModalError, setLateModalError] = useState('');
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [manualDate, setManualDate] = useState(todayStr);
+      const [manualField1, setManualField1] = useState('');
+      const [manualField2, setManualField2] = useState('');
+      const [manualError, setManualError] = useState('');
+
+      useEffect(() => {
+        loadData();
+      }, [currentUser]);
+
+      const showNotice = (msg, type = 'success') => {
+        setNotification({ msg, type });
+        setTimeout(() => setNotification(null), 4000);
+      };
+
+      const loadData = async () => {
+        setLoading(true);
+        try {
+          const [salesRes, statsRes] = await Promise.all([
+            fetch('/api/sales', { credentials: 'omit' }).then(r => r.json()).catch(() => null),
+            fetch('/api/sales/stats', { credentials: 'omit' }).then(r => r.json()).catch(() => null)
+          ]);
+
+          if (salesRes && salesRes.data) {
+            setEntries(salesRes.data);
+          }
+          if (statsRes && statsRes.stats) {
+            setStats(statsRes.stats);
+          }
+        } catch (e) {
+          console.warn('Backend load error:', e);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const canAccessCenet = currentUser.role === ROLES.ADMIN || currentUser.role === ROLES.CENET_MANAGER;
+      const canAccessLoop = currentUser.role === ROLES.ADMIN || currentUser.role === ROLES.LOOP_MANAGER;
+      const canImport = currentUser.role !== ROLES.AUDITOR;
+
+      const formatCurrency = (val) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+      };
+
+      const formatDate = (dateStr, withTime = false) => {
+        try {
+          const d = new Date(dateStr);
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getFullYear();
+          if (withTime) {
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+          }
+          return `${day}/${month}/${year}`;
+        } catch {
+          return dateStr || '';
+        }
+      };
+
+      const checkIsLate = (docDate, submitDate) => {
+        const d1 = new Date(docDate);
+        const d2 = new Date(submitDate);
+        const day1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
+        const day2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
+        return Math.floor((day2.getTime() - day1.getTime()) / (1000 * 60 * 60 * 24)) > 1;
+      };
+
+      const handleProcessParsedData = (data) => {
+        const now = new Date();
+        const isLate = checkIsLate(data.recordDate, now);
+
+        if (isLate) {
+          setPendingData({ ...data, isLate: true });
+          setDelayReasonInput('');
+          setLateModalError('');
+          setIsLateModalOpen(true);
+        } else {
+          executeSave(data, '');
+        }
+      };
+
+      const executeSave = async (data, delayReason) => {
+        try {
+          const now = new Date();
+          const payload = {
+            systemType: activeTab,
+            recordDate: data.recordDate,
+            submissionDate: now.toISOString(),
+            field1Amount: parseFloat(data.field1Amount) || 0,
+            field2Amount: parseFloat(data.field2Amount) || 0,
+            totalSales: parseFloat(data.totalSales) || (parseFloat(data.field1Amount || 0) + parseFloat(data.field2Amount || 0)),
+            importSource: data.formatType || data.importSource || 'Manual',
+            delayReason: delayReason || ''
+          };
+
+          const res = await fetch('/api/sales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await res.json();
+          if (res.ok && result.data) {
+            setEntries(prev => [result.data, ...prev]);
+            showNotice(`${activeTab} sale (${payload.importSource}) saved to Firestore!`, 'success');
+            loadData();
+          } else {
+            showNotice(result.message || result.error || 'Error saving sale', 'error');
+          }
+        } catch (e) {
+          showNotice(`Error: ${e.message}`, 'error');
+        } finally {
+          setIsLateModalOpen(false);
+          setPendingData(null);
+        }
+      };
+
+      const handleApiSync = async () => {
+        setIsImportModalOpen(false);
+        try {
+          const res = await fetch('/api/import/api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ systemType: activeTab })
+          });
+          const result = await res.json();
+          if (res.ok && result.data) {
+            handleProcessParsedData(result.data);
+          } else {
+            showNotice(result.error || 'Failed to simulate API import', 'error');
+          }
+        } catch (e) {
+          showNotice(e.message, 'error');
+        }
+      };
+
+      const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsImportModalOpen(false);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('systemType', activeTab);
+
+        try {
+          const res = await fetch('/api/import/file', {
+            method: 'POST',
+            body: formData
+          });
+          const result = await res.json();
+          if (res.ok && result.data) {
+            handleProcessParsedData(result.data);
+          } else {
+            showNotice(result.message || result.error || 'Failed to parse file', 'error');
+          }
+        } catch (e) {
+          showNotice(`Error uploading file: ${e.message}`, 'error');
+        }
+      };
+
+      const handleManualSubmit = (e) => {
+        e.preventDefault();
+        const f1 = parseFloat(manualField1) || 0;
+        const f2 = parseFloat(manualField2) || 0;
+        if (f1 <= 0 && f2 <= 0) {
+          setManualError('Please enter at least one non-zero amount');
+          return;
+        }
+        setManualError('');
+        setIsManualModalOpen(false);
+        handleProcessParsedData({
+          recordDate: new Date(manualDate).toISOString(),
+          field1Amount: f1,
+          field2Amount: f2,
+          totalSales: f1 + f2,
+          formatType: 'Manual'
+        });
+      };
+
+      const getRoleBadge = (r) => {
+        switch (r) {
+          case ROLES.ADMIN: return 'bg-purple-100 text-purple-800 border-purple-200';
+          case ROLES.CENET_MANAGER: return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+          case ROLES.LOOP_MANAGER: return 'bg-teal-100 text-teal-800 border-teal-200';
+          case ROLES.AUDITOR: return 'bg-amber-100 text-amber-800 border-amber-200';
+          default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+      };
+
+      const currentTabEntries = entries.filter(e => e.systemType === activeTab);
+
+      const filteredLogs = entries.filter(e => {
+        if (logFilter === 'LATE') return e.isLate;
+        if (logFilter === 'CENET') return e.systemType === 'CENET';
+        if (logFilter === 'LOOP') return e.systemType === 'LOOP';
+        return true;
+      });
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {notification && (
+            <div className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border text-sm font-bold flex items-center gap-3 transition-all ${
+              notification.type === 'error' ? 'bg-red-50 text-red-900 border-red-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+            }`}>
+              <span>{notification.type === 'error' ? '⚠️' : '✅'}</span>
+              <span>{notification.msg}</span>
+            </div>
+          )}
+
+          {/* Navigation Bar */}
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-700 via-indigo-600 to-teal-500 flex items-center justify-center text-white shadow-md font-black text-lg">
+                  $
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                    Daily Sales & Import Manager
+                  </h1>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1 font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      ● Firestore: elaprojects-3212e
+                    </span>
+                    <span>•</span>
+                    <span>Synced with Phone App (proj_ela)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* RBAC Role Switcher */}
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-1.5 self-start md:self-auto">
+                <span className="text-xs font-semibold text-slate-600 pl-2 uppercase tracking-wider">Role:</span>
+                <select
+                  value={currentUser.id}
+                  onChange={(e) => {
+                    const u = PRESET_USERS.find(x => x.id === e.target.value);
+                    if (u) {
+                      setCurrentUser(u);
+                      showNotice(`Switched role to: ${u.role}`, 'success');
+                    }
+                  }}
+                  className="text-xs font-semibold bg-white border border-slate-200 text-slate-800 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer shadow-sm"
+                >
+                  {PRESET_USERS.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                  ))}
+                </select>
+                <span className={`text-[11px] font-bold px-2 py-1 rounded-md border ${getRoleBadge(currentUser.role)}`}>
+                  {currentUser.role}
+                </span>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 border-t border-slate-100">
+              <button
+                onClick={() => setActiveTab('CENET')}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === 'CENET'
+                    ? 'border-purple-600 text-purple-700 bg-purple-50/50'
+                    : 'border-transparent text-slate-600 hover:text-purple-600'
+                }`}
+              >
+                <span>🏪</span>
+                <span>CENET Sales</span>
+                <span className="text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                  Restaurant & Lounge
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('LOOP')}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === 'LOOP'
+                    ? 'border-teal-600 text-teal-700 bg-teal-50/50'
+                    : 'border-transparent text-slate-600 hover:text-teal-600'
+                }`}
+              >
+                <span>🏷️</span>
+                <span>LOOP Sales</span>
+                <span className="text-[10px] font-medium bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">
+                  Butchery & Liquor
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('LOGS')}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === 'LOGS'
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                    : 'border-transparent text-slate-600 hover:text-indigo-600'
+                }`}
+              >
+                <span>📋</span>
+                <span>Log & Audit Report</span>
+                <span className="text-[10px] font-medium bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">
+                  Compliance
+                </span>
+              </button>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            {/* CENET */}
+            {activeTab === 'CENET' && (
+              <div>
+                {!canAccessCenet ? (
+                  <div className="max-w-xl mx-auto my-12 p-8 bg-white rounded-3xl border border-red-200 shadow-xl text-center">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl font-black">
+                      🛡️
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">Access Restricted by RBAC Policy</h3>
+                    <p className="text-sm text-slate-600 mt-2">
+                      Your role (<span className="font-bold text-red-600">{currentUser.role}</span>) is restricted from accessing CENET Sales (Restaurant & Lounge).
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Required: CENET_MANAGER or ADMIN</p>
+                    <button
+                      onClick={() => setCurrentUser(PRESET_USERS[1])}
+                      className="mt-6 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                    >
+                      Switch to CENET Operator
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 text-white p-6 sm:p-8 rounded-3xl shadow-xl">
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="p-2 bg-white/10 rounded-xl text-xl">🏪</span>
+                          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">CENET Sales</h2>
+                        </div>
+                        <p className="text-purple-200 text-sm mt-1.5 font-medium">
+                          Daily revenue manager for Restaurant &amp; Lounge operations
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-4 items-center text-xs">
+                          <div className="bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-purple-200 uppercase font-semibold">Total Revenue: </span>
+                            <span className="font-extrabold text-white text-sm">
+                              {formatCurrency(currentTabEntries.reduce((s, e) => s + (e.totalSales || 0), 0))}
+                            </span>
+                          </div>
+                          <div className="bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-purple-200 uppercase font-semibold">Entries: </span>
+                            <span className="font-extrabold text-white text-sm">{currentTabEntries.length}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={loadData}
+                          disabled={loading}
+                          className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/20 transition-all"
+                          title="Refresh"
+                        >
+                          🔄
+                        </button>
+                        {canImport ? (
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="flex items-center gap-2 px-6 py-3.5 bg-white text-purple-900 hover:bg-purple-50 font-bold text-sm rounded-2xl shadow-lg transition-all"
+                          >
+                            <span>＋</span>
+                            <span>Import CENET Sales</span>
+                          </button>
+                        ) : (
+                          <div className="text-xs bg-amber-500/20 text-amber-200 px-4 py-2 rounded-xl border border-amber-400/30 font-semibold">
+                            Auditor (Read-Only)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {loading ? (
+                      <div className="text-center py-20 text-slate-400 font-medium">Syncing CENET sales...</div>
+                    ) : currentTabEntries.length === 0 ? (
+                      <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-md mx-auto">
+                        <div className="text-4xl mb-3">🏪</div>
+                        <h4 className="text-lg font-bold text-slate-800">No CENET Sales Recorded</h4>
+                        <p className="text-xs text-slate-500 mt-1 mb-6">Import via automated API, Excel, CSV, or PDF.</p>
+                        {canImport && (
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-5 py-2.5 bg-purple-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-purple-700"
+                          >
+                            Start First Import
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {currentTabEntries.map(entry => (
+                          <div key={entry.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-purple-600"></div>
+                            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                              <span className="font-semibold text-sm text-slate-700">📅 {formatDate(entry.recordDate)}</span>
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                {entry.importSource}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 pt-4 pb-2 items-center">
+                              <div>
+                                <span className="text-xs text-slate-400 block font-medium uppercase">Restaurant</span>
+                                <span className="text-base font-bold text-slate-800">{formatCurrency(entry.field1Amount)}</span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-slate-400 block font-medium uppercase">Lounge</span>
+                                <span className="text-base font-bold text-slate-800">{formatCurrency(entry.field2Amount)}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-slate-400 block font-medium uppercase">CENET Total</span>
+                                <span className="text-lg font-black text-purple-700">{formatCurrency(entry.totalSales)}</span>
+                              </div>
+                            </div>
+                            {entry.isLate && (
+                              <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                                <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                                  <span>⚠️</span> Late Submission (&gt;1 day delay)
+                                </div>
+                                {entry.delayReason && (
+                                  <p className="mt-1 italic font-medium pl-5 text-amber-950">
+                                    Reason: &ldquo;{entry.delayReason}&rdquo;
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LOOP */}
+            {activeTab === 'LOOP' && (
+              <div>
+                {!canAccessLoop ? (
+                  <div className="max-w-xl mx-auto my-12 p-8 bg-white rounded-3xl border border-red-200 shadow-xl text-center">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl font-black">
+                      🛡️
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">Access Restricted by RBAC Policy</h3>
+                    <p className="text-sm text-slate-600 mt-2">
+                      Your role (<span className="font-bold text-red-600">{currentUser.role}</span>) is restricted from accessing LOOP Sales (Butchery & Liquor).
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Required: LOOP_MANAGER or ADMIN</p>
+                    <button
+                      onClick={() => setCurrentUser(PRESET_USERS[2])}
+                      className="mt-6 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                    >
+                      Switch to LOOP Operator
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl">
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="p-2 bg-white/10 rounded-xl text-xl">🏷️</span>
+                          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">LOOP Sales</h2>
+                        </div>
+                        <p className="text-teal-200 text-sm mt-1.5 font-medium">
+                          Daily revenue manager for Butchery &amp; Liquor operations
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-4 items-center text-xs">
+                          <div className="bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-teal-200 uppercase font-semibold">Total Revenue: </span>
+                            <span className="font-extrabold text-white text-sm">
+                              {formatCurrency(currentTabEntries.reduce((s, e) => s + (e.totalSales || 0), 0))}
+                            </span>
+                          </div>
+                          <div className="bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-teal-200 uppercase font-semibold">Entries: </span>
+                            <span className="font-extrabold text-white text-sm">{currentTabEntries.length}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={loadData}
+                          disabled={loading}
+                          className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/20 transition-all"
+                          title="Refresh"
+                        >
+                          🔄
+                        </button>
+                        {canImport ? (
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="flex items-center gap-2 px-6 py-3.5 bg-white text-teal-900 hover:bg-teal-50 font-bold text-sm rounded-2xl shadow-lg transition-all"
+                          >
+                            <span>＋</span>
+                            <span>Import LOOP Sales</span>
+                          </button>
+                        ) : (
+                          <div className="text-xs bg-amber-500/20 text-amber-200 px-4 py-2 rounded-xl border border-amber-400/30 font-semibold">
+                            Auditor (Read-Only)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {loading ? (
+                      <div className="text-center py-20 text-slate-400 font-medium">Syncing LOOP sales...</div>
+                    ) : currentTabEntries.length === 0 ? (
+                      <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-md mx-auto">
+                        <div className="text-4xl mb-3">🏷️</div>
+                        <h4 className="text-lg font-bold text-slate-800">No LOOP Sales Recorded</h4>
+                        <p className="text-xs text-slate-500 mt-1 mb-6">Import via automated API, Excel, CSV, or PDF.</p>
+                        {canImport && (
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-5 py-2.5 bg-teal-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-teal-700"
+                          >
+                            Start First Import
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {currentTabEntries.map(entry => (
+                          <div key={entry.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-teal-600"></div>
+                            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+                              <span className="font-semibold text-sm text-slate-700">📅 {formatDate(entry.recordDate)}</span>
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                                {entry.importSource}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 pt-4 pb-2 items-center">
+                              <div>
+                                <span className="text-xs text-slate-400 block font-medium uppercase">Butchery</span>
+                                <span className="text-base font-bold text-slate-800">{formatCurrency(entry.field1Amount)}</span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-slate-400 block font-medium uppercase">Liquor</span>
+                                <span className="text-base font-bold text-slate-800">{formatCurrency(entry.field2Amount)}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-slate-400 block font-medium uppercase">LOOP Total</span>
+                                <span className="text-lg font-black text-teal-700">{formatCurrency(entry.totalSales)}</span>
+                              </div>
+                            </div>
+                            {entry.isLate && (
+                              <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                                <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                                  <span>⚠️</span> Late Submission (&gt;1 day delay)
+                                </div>
+                                {entry.delayReason && (
+                                  <p className="mt-1 italic font-medium pl-5 text-amber-950">
+                                    Reason: &ldquo;{entry.delayReason}&rdquo;
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LOG & AUDIT REPORT */}
+            {activeTab === 'LOGS' && (
+              <div>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl">
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="p-2 bg-white/10 rounded-xl text-xl">📋</span>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Log &amp; Audit Report</h2>
+                    </div>
+                    <p className="text-indigo-200 text-sm mt-1.5 font-medium">
+                      Centralized timeline, delay justifications &amp; compliance metrics
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadData}
+                    className="flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/20 text-xs font-bold"
+                  >
+                    <span>🔄</span>
+                    <span>Sync Cloud Logs</span>
+                  </button>
+                </div>
+
+                {stats && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Revenue</span>
+                      <span className="text-xl sm:text-2xl font-black text-indigo-700 mt-1 block">
+                        {formatCurrency(stats.totalRevenue)}
+                      </span>
+                      <span className="text-[11px] text-slate-500 mt-1 block">
+                        CENET: {formatCurrency(stats.cenetTotal)} | LOOP: {formatCurrency(stats.loopTotal)}
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Submissions</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-800 mt-1 block">{stats.totalTransactions}</span>
+                      <span className="text-[11px] text-slate-500 mt-1 block">
+                        {stats.cenetCount} CENET • {stats.loopCount} LOOP
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Late Submissions</span>
+                      <span className="text-xl sm:text-2xl font-black text-amber-600 mt-1 block">{stats.lateSubmissionsCount}</span>
+                      <span className="text-[11px] text-amber-700 mt-1 block">Mandatory reasons audited</span>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">On-Time Rate</span>
+                      <span className="text-xl sm:text-2xl font-black text-emerald-600 mt-1 block">{stats.onTimePercentage}%</span>
+                      <span className="text-[11px] text-emerald-700 mt-1 block">Compliance SLA verified</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6">
+                  <button
+                    onClick={() => setLogFilter('ALL')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      logFilter === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    All Logs ({entries.length})
+                  </button>
+                  <button
+                    onClick={() => setLogFilter('LATE')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      logFilter === 'LATE' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    Late Submissions Only ({entries.filter(e => e.isLate).length})
+                  </button>
+                  <button
+                    onClick={() => setLogFilter('CENET')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      logFilter === 'CENET' ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200'
+                    }`}
+                  >
+                    CENET Only ({entries.filter(e => e.systemType === 'CENET').length})
+                  </button>
+                  <button
+                    onClick={() => setLogFilter('LOOP')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      logFilter === 'LOOP' ? 'bg-teal-600 text-white' : 'bg-white text-teal-700 border border-teal-200'
+                    }`}
+                  >
+                    LOOP Only ({entries.filter(e => e.systemType === 'LOOP').length})
+                  </button>
+                </div>
+
+                {filteredLogs.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-md mx-auto">
+                    <p className="text-slate-500 text-sm">No audit logs match selected filter.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredLogs.map(entry => {
+                      const isCenet = entry.systemType === 'CENET';
+                      const f1Label = isCenet ? 'Restaurant' : 'Butchery';
+                      const f2Label = isCenet ? 'Lounge' : 'Liquor';
+
+                      return (
+                        <div key={entry.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-md shrink-0 ${
+                              isCenet ? 'bg-purple-600' : 'bg-teal-600'
+                            }`}>
+                              {entry.systemType[0]}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2.5">
+                                <h4 className="font-bold text-base text-slate-900">
+                                  {entry.systemType} — {formatCurrency(entry.totalSales)}
+                                </h4>
+                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 font-semibold text-slate-600 border border-slate-200">
+                                  {entry.importSource}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-500">
+                                <span>Doc Date: <strong className="text-slate-700">{formatDate(entry.recordDate)}</strong></span>
+                                <span>•</span>
+                                <span>Submitted: <strong className="text-slate-700">{formatDate(entry.submissionDate, true)}</strong></span>
+                              </div>
+                              <div className="mt-2 text-xs text-slate-600 font-medium">
+                                Breakdown: <span className="font-semibold text-slate-800">{f1Label}:</span> {formatCurrency(entry.field1Amount)} | <span className="font-semibold text-slate-800">{f2Label}:</span> {formatCurrency(entry.field2Amount)}
+                              </div>
+                              {entry.isLate && entry.delayReason && (
+                                <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                                  <span className="font-bold text-amber-800">Delay Reason: </span>
+                                  <span className="italic font-medium">&ldquo;{entry.delayReason}&rdquo;</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="self-end md:self-center shrink-0">
+                            {entry.isLate ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-red-100 text-red-800 border border-red-200">
+                                ⚠️ LATE
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                ✓ ON-TIME
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+
+          {/* Import Modal */}
+          {isImportModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Import {activeTab} Sales Data</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {activeTab === 'CENET' ? 'Restaurant & Lounge' : 'Butchery & Liquor'}
+                    </p>
+                  </div>
+                  <button onClick={() => setIsImportModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+                </div>
+
+                <div className="space-y-3 mt-5">
+                  <button
+                    onClick={handleApiSync}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-left transition-all"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold">⚡</div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">Fetch via API (Automated)</h4>
+                      <p className="text-xs text-slate-500">Direct API sync for today&apos;s date</p>
+                    </div>
+                  </button>
+
+                  <label className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-left transition-all cursor-pointer">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl font-bold">📊</div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">Import Excel / CSV File</h4>
+                      <p className="text-xs text-slate-500">Upload and extract .xlsx or .csv document</p>
+                    </div>
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
+                  </label>
+
+                  <label className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-red-400 hover:bg-red-50/50 text-left transition-all cursor-pointer">
+                    <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-xl font-bold">📄</div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">Import PDF File</h4>
+                      <p className="text-xs text-slate-500">Extract text &amp; dates from PDF daily statement</p>
+                    </div>
+                    <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />
+                  </label>
+
+                  <button
+                    onClick={() => {
+                      setIsImportModalOpen(false);
+                      setIsManualModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/50 text-left transition-all"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl font-bold">✏️</div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">Manual Sales Entry</h4>
+                      <p className="text-xs text-slate-500">Enter dates and amounts directly</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Late Reason Modal */}
+          {isLateModalOpen && pendingData && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⚠️</span>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Late Submission Detected</h3>
+                    <p className="text-xs text-slate-500">
+                      Doc Date: <strong>{formatDate(pendingData.recordDate)}</strong> (&gt;1 day delay)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="my-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium">
+                  Per compliance policy, an explanation is mandatory before saving late submissions to Firestore.
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!delayReasonInput.trim()) {
+                    setLateModalError('Delay reason is mandatory');
+                    return;
+                  }
+                  executeSave(pendingData, delayReasonInput.trim());
+                }}>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Reason for Delay <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={delayReasonInput}
+                    onChange={(e) => setDelayReasonInput(e.target.value)}
+                    placeholder="e.g. Branch network connectivity issue, awaited inventory audit..."
+                    className="w-full text-sm p-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                  {lateModalError && <p className="text-xs font-bold text-red-600 mt-1">{lateModalError}</p>}
+
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLateModalOpen(false);
+                        setPendingData(null);
+                      }}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md"
+                    >
+                      Confirm &amp; Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Manual Entry Modal */}
+          {isManualModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-900">Manual {activeTab} Entry</h3>
+                  <button onClick={() => setIsManualModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                </div>
+
+                <form onSubmit={handleManualSubmit} className="space-y-4 mt-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Record Date</label>
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(e) => setManualDate(e.target.value)}
+                      className="w-full text-sm p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      {activeTab === 'CENET' ? 'Restaurant Sales ($)' : 'Butchery Sales ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={manualField1}
+                      onChange={(e) => setManualField1(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-sm p-2.5 rounded-xl border border-slate-300"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      {activeTab === 'CENET' ? 'Lounge Sales ($)' : 'Liquor Sales ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={manualField2}
+                      onChange={(e) => setManualField2(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-sm p-2.5 rounded-xl border border-slate-300"
+                      required
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-xs">
+                    <span className="font-semibold text-slate-600 uppercase">Calculated Total:</span>
+                    <span className="text-base font-bold text-slate-900">
+                      ${((parseFloat(manualField1) || 0) + (parseFloat(manualField2) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+
+                  {manualError && <p className="text-xs font-bold text-red-600">{manualError}</p>}
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsManualModalOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className={`px-5 py-2.5 text-xs font-bold text-white rounded-xl shadow-md ${
+                        activeTab === 'CENET' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-teal-600 hover:bg-teal-700'
+                      }`}
+                    >
+                      Proceed
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="bg-white border-t border-slate-200 py-6 text-slate-500 text-xs mt-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-700">Daily Sales &amp; Import Manager (Web Edition)</span>
+                <span>•</span>
+                <span>React + Node.js Fullstack</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 font-medium">
+                  ● Firestore: elaprojects-3212e
+                </span>
+                <span className="text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 font-medium">
+                  🛡️ RBAC Enforced
+                </span>
+                <span className="text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200 font-medium">
+                  📱 Mobile Parity with proj_ela
+                </span>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
