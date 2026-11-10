@@ -48,9 +48,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve web frontend from server/public or client/dist
+// Serve web frontend from server/public or dist
 const publicPath = path.join(__dirname, 'public');
-const clientDistPath = path.join(__dirname, '../client/dist');
+const clientDistPath = path.join(__dirname, '../dist');
 app.use(express.static(publicPath));
 app.use(express.static(clientDistPath));
 

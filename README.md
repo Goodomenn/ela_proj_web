@@ -108,13 +108,71 @@ cd client && npm run dev
 
 ---
 
+## ☁️ 1-Click Vercel Deployment
+
+This project is structured as a unified fullstack app optimized for **Vercel**:
+- **Frontend:** React (Vite SPA) at root, building to `dist/`
+- **Backend:** Express API in `api/index.js` running as a Vercel Serverless Function
+- **Routing:** Handled automatically via `vercel.json`
+
+### To Deploy on Vercel:
+1. Push to your GitHub repo (`main` branch).
+2. Go to [Vercel Dashboard](https://vercel.com/dashboard) and click **"Add New..."** → **"Project"**.
+3. Select your repository `Goodomenn/ela_proj_web`.
+4. Vercel automatically detects:
+   - **Framework Preset:** Vite
+   - **Root Directory:** `./`
+   - **Build Command:** `vite build`
+   - **Output Directory:** `dist`
+5. (Optional) In **Environment Variables**, add:
+   - `FIREBASE_PROJECT_ID`: `elaprojects-3212e`
+   - `FIREBASE_API_KEY`: `AIzaSyA71YJKRUr6j4PIoQHpCn72fEG_BXT_OA0`
+   - `JWT_SECRET`: (any secure random string)
+6. Click **Deploy**! Both client and serverless API will be live on a single URL with no split deployments.
+
+---
+
+## 💻 Local Development
+
+```bash
+# 1. Install all dependencies
+npm install
+
+# 2. Start Vite development server (Port 5173)
+npm run dev
+
+# 3. Start local Node backend (Port 5000)
+npm run server
+```
+
+---
+
 ## 📂 Project Directory Structure
 
 ```
-proj ela web/
+ela_proj_web/
+├── api/
+│   └── index.js                  # Vercel serverless Express API handler
+├── src/
+│   ├── App.jsx                   # Application shell & navigation
+│   ├── context/
+│   │   └── AuthContext.jsx       # RBAC state & role switcher
+│   ├── services/
+│   │   ├── api.js                # Axios client with JWT interceptor
+│   │   └── firebaseClient.js     # Direct Firebase client SDK configuration
+│   ├── components/
+│   │   ├── Navbar.jsx            # Navigation bar & role dropdown
+│   │   ├── SalesCard.jsx         # Sales entry card with late warning
+│   │   ├── ImportModal.jsx       # Modal with 4 import sources
+│   │   ├── LateReasonModal.jsx   # Mandatory delay justification dialog
+│   │   ├── ManualEntryModal.jsx  # Manual sales entry form
+│   │   └── RbacRestrictedNotice.jsx # 403 Forbidden RBAC notice
+│   └── screens/
+│       ├── CenetScreen.jsx       # Restaurant & Lounge screen
+│       ├── LoopScreen.jsx        # Butchery & Liquor screen
+│       └── LogReportScreen.jsx   # Audit trail & compliance screen
 ├── server/
-│   ├── index.js                  # Express server entry point (Port 5000)
-│   ├── .env                      # Firebase project ID and secret keys
+│   ├── index.js                  # Local Express server entry point (Port 5000)
 │   ├── config/
 │   │   └── firebase.js           # Firestore REST API & cloud integration (elaprojects-3212e)
 │   ├── middleware/
@@ -123,33 +181,14 @@ proj ela web/
 │   │   ├── auth.js               # Login & role-switching API
 │   │   ├── sales.js              # Sales CRUD, late detection & query filters
 │   │   └── import.js             # API sync, Excel/CSV/PDF document parser
-│   ├── services/
-│   │   ├── salesService.js       # Core sales persistence & Firestore sync
-│   │   └── fileParserService.js  # CSV, Excel (.xlsx), and PDF document parsing
-│   └── public/
-│       └── index.html            # Standalone React web interface (Served at http://localhost:5000)
-├── client/
-│   ├── package.json              # React dependencies
-│   ├── vite.config.js            # Vite configuration with API proxy
-│   ├── tailwind.config.js        # Tailwind CSS theme configuration
-│   └── src/
-│       ├── App.jsx               # Application shell & navigation
-│       ├── context/
-│       │   └── AuthContext.jsx   # RBAC state & role switcher
-│       ├── services/
-│       │   ├── api.js            # Axios client with JWT interceptor
-│       │   └── firebaseClient.js # Direct Firebase client SDK configuration
-│       ├── components/
-│       │   ├── Navbar.jsx        # Navigation bar & role dropdown
-│       │   ├── SalesCard.jsx     # Sales entry card with late warning
-│       │   ├── ImportModal.jsx   # Modal with 4 import sources
-│       │   ├── LateReasonModal.jsx # Mandatory delay justification dialog
-│       │   ├── ManualEntryModal.jsx# Manual sales entry form
-│       │   └── RbacRestrictedNotice.jsx # 403 Forbidden RBAC notice
-│       └── screens/
-│           ├── CenetScreen.jsx   # Restaurant & Lounge screen
-│           ├── LoopScreen.jsx    # Butchery & Liquor screen
-│           └── LogReportScreen.jsx # Audit trail & compliance screen
-├── package.json                  # Root npm scripts
+│   └── services/
+│       ├── salesService.js       # Core sales persistence & Firestore sync
+│       └── fileParserService.js  # CSV, Excel (.xlsx), and PDF document parsing
+├── index.html                    # Vite HTML entry
+├── vite.config.js                # Vite configuration with API proxy
+├── tailwind.config.js            # Tailwind CSS theme configuration
+├── postcss.config.js             # PostCSS plugins
+├── vercel.json                   # Vercel serverless routing configuration
+├── package.json                  # Root dependencies & build scripts
 └── README.md                     # Documentation
 ```
