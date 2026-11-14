@@ -1,44 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db, collection, getDocs, query, where, doc, setDoc } from '../services/firebaseClient';
+import { AppPermissions, getEffectivePermissions } from '../services/rbacService';
 
-export const AppPermissions = {
-  dashboard: 'dashboard',
-  pos: 'pos',
-  transactions: 'transactions',
-  auditHub: 'audit_hub',
-  alerts: 'alerts',
-  approvals: 'approvals',
-  fbHub: 'fb_hub',
-  salesCenet: 'sales_cenet',
-  salesLoop: 'sales_loop',
-  purchaseView: 'purchase.view',
-  purchaseEdit: 'purchase.edit',
-  purchaseEnterLog: 'purchase.enter_log',
-  goodsReceiving: 'goods_receiving',
-  inventory: 'inventory',
-  messages: 'messages',
-  reports: 'reports',
-  settingsView: 'settings.view',
-  settingsEdit: 'settings.edit',
-  settingsEraseData: 'settings.erase_all_data',
-  rbacView: 'rbac.view',
-  rbacEdit: 'rbac.edit',
-  expenseEntry: 'expense_entry',
-  expenseReports: 'expense_reports',
-  fundManagement: 'fund_management',
-  cashierEntry: 'cashier_entry',
-  cashierReports: 'cashier_reports',
-  myTransactions: 'my_transactions',
-};
+export { AppPermissions };
 
 const DEFAULT_USER = {
-  uid: 'admin_dani',
+  uid: 'Nu2RhLORCMbwUuAlumeU',
   username: 'dani',
   role: 'admin',
   status: 'approved',
-  displayName: 'dani (Manager)',
-  roleLabel: 'MANAGER',
-  banks: ['Awash Bank', 'Bank of Abyssinia', 'CBE', 'CBE Birr', 'Telebirr']
+  displayName: 'dani (Root Administrator)',
+  roleLabel: 'ADMIN',
+  banks: ['Awash Bank', 'Bank of Abyssinia', 'CBE', 'CBE Birr', 'Telebirr'],
+  roleIds: []
 };
 
 const AuthContext = createContext(null);
@@ -51,13 +25,25 @@ export function AuthProvider({ children }) {
     } catch (_) {}
     return DEFAULT_USER;
   });
+  const [userPermissions, setUserPermissions] = useState(new Set(AppPermissions.all));
   const [loading, setLoading] = useState(false);
 
+  // Sync user state to localStorage and re-calculate effective permissions from Firestore
   useEffect(() => {
     if (user) {
       localStorage.setItem('ela_active_user', JSON.stringify(user));
+      // Resolve permissions from Firestore
+      getEffectivePermissions(user).then((permsSet) => {
+        setUserPermissions(permsSet);
+      }).catch((err) => {
+        console.warn('[Permissions Refresh Notice]:', err.message);
+        if (user.role === 'admin') {
+          setUserPermissions(new Set(AppPermissions.all));
+        }
+      });
     } else {
       localStorage.removeItem('ela_active_user');
+      setUserPermissions(new Set());
     }
   }, [user]);
 
@@ -66,15 +52,20 @@ export function AuthProvider({ children }) {
   const hasPermission = (permission) => {
     if (!user) return false;
     if (isAdmin) return true;
-    if (Array.isArray(user.permissions)) {
-      return user.permissions.includes(permission);
-    }
-    return true; // default open for standard demo/web access
+    return userPermissions.has(permission);
   };
 
   const hasAnyPermission = (permissions = []) => {
+    if (!user) return false;
     if (isAdmin) return true;
-    return permissions.some(p => hasPermission(p));
+    return permissions.some(p => userPermissions.has(p));
+  };
+
+  const refreshPermissions = async () => {
+    if (user) {
+      const perms = await getEffectivePermissions(user);
+      setUserPermissions(perms);
+    }
   };
 
   const login = async (username, password) => {
@@ -95,24 +86,30 @@ export function AuthProvider({ children }) {
             status: uDoc.status || 'approved',
             displayName: `${uDoc.username} (${uDoc.role === 'admin' ? 'Manager' : 'Staff'})`,
             roleLabel: (uDoc.role || 'STAFF').toUpperCase(),
-            banks: uDoc.banks || ['Awash Bank', 'CBE', 'Telebirr']
+            banks: uDoc.banks || ['Awash Bank', 'CBE', 'Telebirr'],
+            roleIds: uDoc.roleIds || []
           };
           setUser(loggedUser);
+          const perms = await getEffectivePermissions(loggedUser);
+          setUserPermissions(perms);
           return loggedUser;
         }
       }
-      // Fallback local auth for instant login
-      const fallbackUser = {
-        uid: `user_${username.toLowerCase()}`,
-        username,
-        role: username.toLowerCase().includes('dani') ? 'admin' : 'staff',
+      
+      // Fallback local demo account if no Firestore connection
+      const localUser = {
+        uid: `user_${Date.now()}`,
+        username: username.trim(),
+        role: username.toLowerCase().includes('admin') || username.toLowerCase() === 'dani' ? 'admin' : 'user',
         status: 'approved',
-        displayName: `${username} (${username.toLowerCase().includes('dani') ? 'Manager' : 'Staff'})`,
-        roleLabel: username.toLowerCase().includes('dani') ? 'MANAGER' : 'STAFF',
-        banks: ['Awash Bank', 'Bank of Abyssinia', 'CBE', 'CBE Birr', 'Telebirr']
+        displayName: `${username} (Active)`,
+        roleLabel: username.toLowerCase() === 'dani' ? 'ADMIN' : 'STAFF',
+        banks: ['CBE', 'Telebirr'],
+        roleIds: []
       };
-      setUser(fallbackUser);
-      return fallbackUser;
+      setUser(localUser);
+      setUserPermissions(localUser.role === 'admin' ? new Set(AppPermissions.all) : new Set());
+      return localUser;
     } finally {
       setLoading(false);
     }
@@ -120,24 +117,30 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     setUser(null);
+    setUserPermissions(new Set());
     localStorage.removeItem('ela_active_user');
   };
 
-  const resetToAdmin = () => {
-    setUser(DEFAULT_USER);
-  };
-
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAdmin,
-      loading,
-      hasPermission,
-      hasAnyPermission,
-      login,
-      logout,
-      resetToAdmin
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        isAdmin,
+        role: user?.role || 'user',
+        canAccessCenet: hasPermission(AppPermissions.salesCenet),
+        canAccessLoop: hasPermission(AppPermissions.salesLoop),
+        canImport: isAdmin || hasPermission(AppPermissions.salesCenet) || hasPermission(AppPermissions.salesLoop),
+        permissions: userPermissions,
+        hasPermission,
+        hasAnyPermission,
+        refreshPermissions,
+        login,
+        logout,
+        resetToAdmin: () => setUser(DEFAULT_USER),
+        loading
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
