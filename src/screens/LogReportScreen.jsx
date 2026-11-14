@@ -1,285 +1,238 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, ClipboardList, AlertTriangle, CheckCircle2, TrendingUp, Calendar, DollarSign, Clock } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { salesApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { 
+  ChevronLeft, 
+  Search, 
+  AlertCircle, 
+  Calendar, 
+  ShoppingBag, 
+  Clock, 
+  ChevronRight,
+  Filter,
+  CheckCircle2
+} from 'lucide-react';
+import FintechHeader from '../components/FintechHeader';
+import { FintechCard, FintechBadge } from '../components/FintechCard';
+import { subscribeToSalesEntries, formatETB } from '../services/firebaseClient';
 
-export default function LogReportScreen() {
-  const { role } = useAuth();
-  const [allEntries, setAllEntries] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function LogReportScreen({ onBack }) {
+  const [mainTab, setMainTab] = useState(0); // 0: Summarized Log, 1: Sold Items
+  const [posTab, setPosTab] = useState('CENET'); // 'CENET' or 'LOOP'
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'LATE', 'CENET', 'LOOP'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [salesEntries, setSalesEntries] = useState([]);
+  const [selectedEntry, setSelectedEntry] = useState(null);
 
   useEffect(() => {
-    loadLogs();
-  }, [role]);
+    const unsub = subscribeToSalesEntries('ALL', (entries) => {
+      setSalesEntries(entries);
+    });
+    return () => unsub();
+  }, []);
 
-  const loadLogs = async () => {
-    setLoading(true);
-    try {
-      const [salesRes, statsRes] = await Promise.all([
-        salesApi.getSales(),
-        salesApi.getStats()
-      ]);
+  const filteredEntries = salesEntries.filter(entry => {
+    // POS Tab filter for Sold Items
+    if (mainTab === 1 && entry.systemType !== posTab) return false;
 
-      if (salesRes && salesRes.data) {
-        setAllEntries(salesRes.data);
-      }
-      if (statsRes && statsRes.stats) {
-        setStats(statsRes.stats);
-      }
-    } catch (e) {
-      console.error('Error loading audit logs:', e);
-    } finally {
-      setLoading(false);
+    // Filter pill
+    if (filter === 'LATE' && !entry.isLateSubmission) return false;
+    if (filter === 'CENET' && entry.systemType !== 'CENET') return false;
+    if (filter === 'LOOP' && entry.systemType !== 'LOOP') return false;
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const dev = (entry.deviceName || '').toLowerCase();
+      const sys = (entry.systemType || '').toLowerCase();
+      const date = (entry.recordDate || '').toLowerCase();
+      return dev.includes(q) || sys.includes(q) || date.includes(q);
     }
-  };
-
-  const filteredEntries = allEntries.filter(entry => {
-    if (filter === 'LATE') return entry.isLate;
-    if (filter === 'CENET') return entry.systemType === 'CENET';
-    if (filter === 'LOOP') return entry.systemType === 'LOOP';
     return true;
   });
 
-  const formatCurrency = (val) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2
-    }).format(val || 0);
-  };
-
-  const formatDate = (dateString, withTime = false) => {
-    try {
-      return format(parseISO(dateString), withTime ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy');
-    } catch {
-      return dateString || '';
-    }
-  };
-
-  const filteredTotal = filteredEntries.reduce((acc, curr) => acc + (curr.totalSales || 0), 0);
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
-              <ClipboardList className="w-6 h-6 text-indigo-200" />
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Log &amp; Audit Report
-            </h2>
-          </div>
-          <p className="text-indigo-200 text-sm mt-1.5 font-medium">
-            Centralized submission timeline, delayed transaction audit trail &amp; compliance metrics
-          </p>
-        </div>
+    <div className="flex-1 flex flex-col pb-6">
+      <FintechHeader
+        title="Admin Audit Log"
+        subtitle="HABESHA ENTERPRISE • ALL DATA"
+        showBackButton={true}
+        showMenu={false}
+        onBack={onBack}
+        actions={
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#00BFA5]/15 text-[#00BFA5] border border-[#00BFA5]/30">
+            ALL CHANNELS
+          </span>
+        }
+      />
+
+      {/* Main Tabs: Summarized Log vs Sold Items */}
+      <div className="px-5 pt-3 pb-2 flex gap-2">
+        <button
+          onClick={() => setMainTab(0)}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+            mainTab === 0
+              ? 'bg-[#00BFA5] text-[#0D121D]'
+              : 'bg-[#161C28] text-[#8E99AE] hover:text-white border border-[#1E2635]'
+          }`}
+        >
+          Summarized Log
+        </button>
 
         <button
-          onClick={loadLogs}
-          disabled={loading}
-          className="self-start md:self-auto flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-md border border-white/20 transition-all font-semibold text-xs shadow-md"
+          onClick={() => setMainTab(1)}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+            mainTab === 1
+              ? 'bg-[#00BFA5] text-[#0D121D]'
+              : 'bg-[#161C28] text-[#8E99AE] hover:text-white border border-[#1E2635]'
+          }`}
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Sync Cloud Logs</span>
+          Sold Items
         </button>
       </div>
 
-      {/* KPI Cards Row */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Total Revenue
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-indigo-700 mt-1 block">
-              {formatCurrency(stats.totalRevenue)}
-            </span>
-            <span className="text-[11px] text-slate-500 mt-1 block font-medium">
-              CENET: {formatCurrency(stats.cenetTotal)} | LOOP: {formatCurrency(stats.loopTotal)}
-            </span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Total Submissions
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-slate-800 mt-1 block">
-              {stats.totalTransactions}
-            </span>
-            <span className="text-[11px] text-slate-500 mt-1 block font-medium">
-              {stats.cenetCount} CENET • {stats.loopCount} LOOP
-            </span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              Late Submissions
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-amber-600 mt-1 block">
-              {stats.lateSubmissionsCount}
-            </span>
-            <span className="text-[11px] text-amber-700 mt-1 block font-medium">
-              Delay reason documented
-            </span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-              On-Time Rate
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-emerald-600 mt-1 block">
-              {stats.onTimePercentage}%
-            </span>
-            <span className="text-[11px] text-emerald-700 mt-1 block font-medium">
-              Same-day &amp; 1-day submissions
-            </span>
-          </div>
+      {/* If Sold Items: Toggle CENET / LOOP */}
+      {mainTab === 1 && (
+        <div className="px-5 pb-2 flex gap-2">
+          {['CENET', 'LOOP'].map(pos => (
+            <button
+              key={pos}
+              onClick={() => setPosTab(pos)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                posTab === pos
+                  ? 'bg-[#00D1FF] text-[#0D121D]'
+                  : 'bg-[#0D121D] text-[#8E99AE] border border-[#1E2635]'
+              }`}
+            >
+              {pos} Channel
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Filter Chips matching Flutter FilterChips */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6">
-        <button
-          onClick={() => setFilter('ALL')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-            filter === 'ALL'
-              ? 'bg-indigo-600 text-white'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          All Logs ({allEntries.length})
-        </button>
+      {/* Filter Chips & Search Bar */}
+      <div className="px-5 pt-2 pb-3 space-y-2">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {['ALL', 'LATE', 'CENET', 'LOOP'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-colors shrink-0 ${
+                filter === f
+                  ? 'bg-[#00D1FF]/20 text-[#00D1FF] border border-[#00D1FF]/50'
+                  : 'bg-[#161C28] text-[#8E99AE] border border-[#1E2635] hover:text-white'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
 
-        <button
-          onClick={() => setFilter('LATE')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-            filter === 'LATE'
-              ? 'bg-amber-500 text-white'
-              : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
-          }`}
-        >
-          Late Submissions Only ({allEntries.filter(e => e.isLate).length})
-        </button>
-
-        <button
-          onClick={() => setFilter('CENET')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-            filter === 'CENET'
-              ? 'bg-purple-600 text-white'
-              : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50'
-          }`}
-        >
-          CENET Only ({allEntries.filter(e => e.systemType === 'CENET').length})
-        </button>
-
-        <button
-          onClick={() => setFilter('LOOP')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-            filter === 'LOOP'
-              ? 'bg-teal-600 text-white'
-              : 'bg-white text-teal-700 border border-teal-200 hover:bg-teal-50'
-          }`}
-        >
-          LOOP Only ({allEntries.filter(e => e.systemType === 'LOOP').length})
-        </button>
-
-        <div className="ml-auto text-xs text-slate-500 font-semibold hidden md:block">
-          Filtered Sales Volume: <span className="text-slate-800 font-bold">{formatCurrency(filteredTotal)}</span>
+        <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8E99AE]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by device, system, date..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#161C28] border border-[#1E2635] text-white placeholder-[#8E99AE] text-xs focus:outline-none focus:border-[#00BFA5]"
+          />
         </div>
       </div>
 
-      {/* Audit Log Timeline List matching Flutter ListView */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
-          <p className="font-medium text-sm">Loading audit logs...</p>
-        </div>
-      ) : filteredEntries.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-md mx-auto">
-          <p className="text-slate-500 text-sm font-medium">No audit logs match selected filter.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredEntries.map(entry => {
-            const isCenet = entry.systemType === 'CENET';
-            const f1Name = isCenet ? 'Restaurant' : 'Butchery';
-            const f2Name = isCenet ? 'Lounge' : 'Liquor';
+      {/* Entries List */}
+      <div className="px-5 space-y-3">
+        {filteredEntries.length === 0 ? (
+          <div className="p-8 text-center bg-[#161C28]/50 border border-[#1E2635] rounded-2xl">
+            <p className="text-xs text-[#8E99AE]">No sales entries found in Firestore matching this filter.</p>
+          </div>
+        ) : (
+          filteredEntries.map(entry => {
+            const isLate = !!entry.isLateSubmission;
+            const items = entry.items || [];
+            const dateStr = entry.recordDate || entry.date || 'Unknown Date';
 
             return (
               <div
                 key={entry.id}
-                className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
+                className="p-4 bg-[#161C28] border border-[#1E2635] rounded-2xl cursor-pointer hover:border-[#00BFA5]/50 transition-all duration-150"
               >
-                {/* Left: Avatar & Basic Info */}
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-md shrink-0 ${
-                      isCenet ? 'bg-purple-600' : 'bg-teal-600'
-                    }`}
-                  >
-                    {entry.systemType[0]}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${
+                      entry.systemType === 'CENET' 
+                        ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' 
+                        : 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+                    }`}>
+                      {entry.systemType}
+                    </span>
+                    <span className="text-xs font-bold text-white">
+                      {entry.deviceName || 'Primary Counter'}
+                    </span>
                   </div>
 
+                  <span className="text-sm font-bold text-[#00FF94]">
+                    {formatETB(entry.totalSales)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-[#8E99AE] pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={13} />
+                    <span>{dateStr}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ShoppingBag size={13} />
+                    <span>{entry.totalItemsSold || items.length} items</span>
+                  </div>
+                </div>
+
+                {/* Bank / Cash mini breakdown */}
+                <div className="mt-2.5 pt-2 border-t border-[#1E2635] grid grid-cols-3 gap-2 text-[11px]">
                   <div>
-                    <div className="flex items-center gap-2.5">
-                      <h4 className="font-bold text-base text-slate-900">
-                        {entry.systemType} — {formatCurrency(entry.totalSales)}
-                      </h4>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 font-semibold text-slate-600 border border-slate-200">
-                        {entry.importSource}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-500">
-                      <span className="flex items-center gap-1 font-medium">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        Doc Date: <strong className="text-slate-700">{formatDate(entry.recordDate)}</strong>
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        Submitted: <strong className="text-slate-700">{formatDate(entry.submissionDate, true)}</strong>
-                      </span>
-                    </div>
-
-                    <div className="mt-2 text-xs text-slate-600 font-medium">
-                      Breakdown: <span className="font-semibold text-slate-800">{f1Name}:</span> {formatCurrency(entry.field1Amount)} | <span className="font-semibold text-slate-800">{f2Name}:</span> {formatCurrency(entry.field2Amount)}
-                    </div>
-
-                    {/* Delay Reason for Late Submissions */}
-                    {entry.isLate && entry.delayReason && (
-                      <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                        <span className="font-bold text-amber-800">Delay Reason: </span>
-                        <span className="italic font-medium">&ldquo;{entry.delayReason}&rdquo;</span>
-                      </div>
-                    )}
+                    <span className="text-[#8E99AE] block text-[9px] uppercase font-bold">Cash</span>
+                    <span className="text-white font-medium">{formatETB(entry.totalCash || 0, 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#8E99AE] block text-[9px] uppercase font-bold">CBE</span>
+                    <span className="text-white font-medium">{formatETB(entry.totalCbe || 0, 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#8E99AE] block text-[9px] uppercase font-bold">Telebirr</span>
+                    <span className="text-white font-medium">{formatETB(entry.totalTelebirr || 0, 0)}</span>
                   </div>
                 </div>
 
-                {/* Right: Status Pill */}
-                <div className="self-end md:self-center shrink-0">
-                  {entry.isLate ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-red-100 text-red-800 border border-red-200">
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-                      LATE
+                {isLate && (
+                  <div className="mt-2.5 p-2 rounded-lg bg-[#FF4D4D]/10 border border-[#FF4D4D]/30 flex items-center gap-2 text-xs text-[#FF4D4D]">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span className="truncate">Late: {entry.lateReason || 'Submitted after deadline'}</span>
+                  </div>
+                )}
+
+                {/* Expanded Item Breakdown */}
+                {selectedEntry?.id === entry.id && items.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-[#1E2635] space-y-1.5">
+                    <span className="text-[10px] font-bold text-[#8E99AE] tracking-wider uppercase block mb-1">
+                      Detailed Sold Items ({items.length})
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      ON-TIME
-                    </span>
-                  )}
-                </div>
+                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                      {items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center p-1.5 rounded bg-[#0D121D] border border-[#1E2635] text-[11px]">
+                          <span className="text-white font-medium truncate max-w-[200px]">{item.name || item.code}</span>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-[#8E99AE]">{item.quantity}x</span>
+                            <span className="text-[#00FF94] font-semibold">{formatETB(item.totalAmount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
     </div>
   );
 }

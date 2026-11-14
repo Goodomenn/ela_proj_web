@@ -7,6 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
+        fintech: {
+          bg: '#0D121D',
+          card: '#161C28',
+          border: '#1E2635',
+          accent: '#00D1FF',
+          textPrimary: '#FFFFFF',
+          textSecondary: '#8E99AE',
+          success: '#00FF94',
+          warning: '#FFB800',
+          error: '#FF4D4D',
+          info: '#339AF0',
+          outer: '#070A10',
+        },
         cenet: {
           light: '#ede7f6',
           DEFAULT: '#673ab7',

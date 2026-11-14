@@ -1,98 +1,143 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authApi } from '../services/api';
+import { db, collection, getDocs, query, where, doc, setDoc } from '../services/firebaseClient';
+
+export const AppPermissions = {
+  dashboard: 'dashboard',
+  pos: 'pos',
+  transactions: 'transactions',
+  auditHub: 'audit_hub',
+  alerts: 'alerts',
+  approvals: 'approvals',
+  fbHub: 'fb_hub',
+  salesCenet: 'sales_cenet',
+  salesLoop: 'sales_loop',
+  purchaseView: 'purchase.view',
+  purchaseEdit: 'purchase.edit',
+  purchaseEnterLog: 'purchase.enter_log',
+  goodsReceiving: 'goods_receiving',
+  inventory: 'inventory',
+  messages: 'messages',
+  reports: 'reports',
+  settingsView: 'settings.view',
+  settingsEdit: 'settings.edit',
+  settingsEraseData: 'settings.erase_all_data',
+  rbacView: 'rbac.view',
+  rbacEdit: 'rbac.edit',
+  expenseEntry: 'expense_entry',
+  expenseReports: 'expense_reports',
+  fundManagement: 'fund_management',
+  cashierEntry: 'cashier_entry',
+  cashierReports: 'cashier_reports',
+  myTransactions: 'my_transactions',
+};
+
+const DEFAULT_USER = {
+  uid: 'admin_dani',
+  username: 'dani',
+  role: 'admin',
+  status: 'approved',
+  displayName: 'dani (Manager)',
+  roleLabel: 'MANAGER',
+  banks: ['Awash Bank', 'Bank of Abyssinia', 'CBE', 'CBE Birr', 'Telebirr']
+};
 
 const AuthContext = createContext(null);
 
-export const ROLES = {
-  ADMIN: 'ADMIN',
-  CENET_MANAGER: 'CENET_MANAGER',
-  LOOP_MANAGER: 'LOOP_MANAGER',
-  AUDITOR: 'AUDITOR'
-};
-
-export const PRESET_USERS = [
-  {
-    id: 'user-admin-1',
-    name: 'Administrator',
-    email: 'admin@ela.com',
-    role: ROLES.ADMIN,
-    description: 'Full access to CENET, LOOP & Audit Logs'
-  },
-  {
-    id: 'user-cenet-1',
-    name: 'CENET Operator',
-    email: 'cenet@ela.com',
-    role: ROLES.CENET_MANAGER,
-    description: 'Restaurant & Lounge access only'
-  },
-  {
-    id: 'user-loop-1',
-    name: 'LOOP Operator',
-    email: 'loop@ela.com',
-    role: ROLES.LOOP_MANAGER,
-    description: 'Butchery & Liquor access only'
-  },
-  {
-    id: 'user-auditor-1',
-    name: 'Compliance Auditor',
-    email: 'auditor@ela.com',
-    role: ROLES.AUDITOR,
-    description: 'Read-only access to Audit Logs'
-  }
-];
-
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(PRESET_USERS[0]);
-  const [availableUsers, setAvailableUsers] = useState(PRESET_USERS);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ela_active_user');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return DEFAULT_USER;
+  });
   const [loading, setLoading] = useState(false);
 
-  // Initialize session with Admin
   useEffect(() => {
-    switchUser(PRESET_USERS[0].id);
-  }, []);
+    if (user) {
+      localStorage.setItem('ela_active_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('ela_active_user');
+    }
+  }, [user]);
 
-  const switchUser = async (userId) => {
+  const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
+
+  const hasPermission = (permission) => {
+    if (!user) return false;
+    if (isAdmin) return true;
+    if (Array.isArray(user.permissions)) {
+      return user.permissions.includes(permission);
+    }
+    return true; // default open for standard demo/web access
+  };
+
+  const hasAnyPermission = (permissions = []) => {
+    if (isAdmin) return true;
+    return permissions.some(p => hasPermission(p));
+  };
+
+  const login = async (username, password) => {
     setLoading(true);
     try {
-      const target = PRESET_USERS.find(u => u.id === userId) || PRESET_USERS[0];
-      const res = await authApi.login(target.id);
-      if (res && res.token) {
-        localStorage.setItem('ela_token', res.token);
-        setCurrentUser(res.user);
-      } else {
-        setCurrentUser(target);
+      if (db) {
+        const q = query(collection(db, 'users'), where('username', '==', username.trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const uDoc = snap.docs[0].data();
+          if (uDoc.password && uDoc.password !== password) {
+            throw new Error('Invalid password');
+          }
+          const loggedUser = {
+            uid: snap.docs[0].id,
+            username: uDoc.username,
+            role: uDoc.role || 'user',
+            status: uDoc.status || 'approved',
+            displayName: `${uDoc.username} (${uDoc.role === 'admin' ? 'Manager' : 'Staff'})`,
+            roleLabel: (uDoc.role || 'STAFF').toUpperCase(),
+            banks: uDoc.banks || ['Awash Bank', 'CBE', 'Telebirr']
+          };
+          setUser(loggedUser);
+          return loggedUser;
+        }
       }
-    } catch (e) {
-      console.warn('Backend login fallback to local user state:', e);
-      const target = PRESET_USERS.find(u => u.id === userId) || PRESET_USERS[0];
-      setCurrentUser(target);
+      // Fallback local auth for instant login
+      const fallbackUser = {
+        uid: `user_${username.toLowerCase()}`,
+        username,
+        role: username.toLowerCase().includes('dani') ? 'admin' : 'staff',
+        status: 'approved',
+        displayName: `${username} (${username.toLowerCase().includes('dani') ? 'Manager' : 'Staff'})`,
+        roleLabel: username.toLowerCase().includes('dani') ? 'MANAGER' : 'STAFF',
+        banks: ['Awash Bank', 'Bank of Abyssinia', 'CBE', 'CBE Birr', 'Telebirr']
+      };
+      setUser(fallbackUser);
+      return fallbackUser;
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * RBAC Permission check helpers
-   */
-  const canAccessCenet = currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.CENET_MANAGER;
-  const canAccessLoop = currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.LOOP_MANAGER;
-  const canImport = currentUser?.role !== ROLES.AUDITOR; // Auditor has read-only access
-  const isAuditor = currentUser?.role === ROLES.AUDITOR;
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('ela_active_user');
+  };
+
+  const resetToAdmin = () => {
+    setUser(DEFAULT_USER);
+  };
 
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        availableUsers,
-        switchUser,
-        loading,
-        canAccessCenet,
-        canAccessLoop,
-        canImport,
-        isAuditor,
-        role: currentUser?.role || ROLES.ADMIN
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      isAdmin,
+      loading,
+      hasPermission,
+      hasAnyPermission,
+      login,
+      logout,
+      resetToAdmin
+    }}>
       {children}
     </AuthContext.Provider>
   );
