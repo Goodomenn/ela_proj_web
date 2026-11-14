@@ -11,7 +11,6 @@ import {
   deleteDoc, 
   query, 
   where, 
-  orderBy, 
   limit, 
   onSnapshot, 
   serverTimestamp 
@@ -58,7 +57,6 @@ export {
   deleteDoc, 
   query, 
   where, 
-  orderBy, 
   limit, 
   onSnapshot, 
   serverTimestamp 
@@ -76,21 +74,30 @@ export function formatETB(amount, decimals = 2) {
 }
 
 /**
- * Real-time listener for sales entries
+ * Real-time listener for sales entries (sorted in-memory to avoid missing Firestore indexes)
  */
 export function subscribeToSalesEntries(systemType, callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'sales_entries');
-  let q = query(colRef, orderBy('createdAt', 'desc'), limit(100));
-  if (systemType && systemType !== 'ALL') {
-    q = query(colRef, where('systemType', '==', systemType), limit(100));
+  try {
+    const colRef = collection(db, 'sales_entries');
+    return onSnapshot(colRef, (snapshot) => {
+      let list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (systemType && systemType !== 'ALL') {
+        list = list.filter(item => item.systemType === systemType);
+      }
+      list.sort((a, b) => {
+        const da = new Date(a.recordDate || a.date || a.createdAt || 0).getTime();
+        const dbTime = new Date(b.recordDate || b.date || b.createdAt || 0).getTime();
+        return dbTime - da;
+      });
+      callback(list);
+    }, (err) => {
+      console.warn('[Sales Subscription Error]:', err.message);
+    });
+  } catch (err) {
+    console.warn('[Sales Subscription Init Error]:', err.message);
+    return () => {};
   }
-  return onSnapshot(q, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(list);
-  }, (err) => {
-    console.warn('[Sales Subscription Error]:', err.message);
-  });
 }
 
 /**
@@ -98,20 +105,23 @@ export function subscribeToSalesEntries(systemType, callback) {
  */
 export function subscribeToTransactions(callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'transactions');
-  const q = query(colRef, limit(200));
-  return onSnapshot(q, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Sort descending by timestamp
-    list.sort((a, b) => {
-      const ta = new Date(a.timestamp || 0).getTime();
-      const tb = new Date(b.timestamp || 0).getTime();
-      return tb - ta;
+  try {
+    const colRef = collection(db, 'transactions');
+    return onSnapshot(colRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => {
+        const ta = new Date(a.timestamp || 0).getTime();
+        const tb = new Date(b.timestamp || 0).getTime();
+        return tb - ta;
+      });
+      callback(list);
+    }, (err) => {
+      console.warn('[Transactions Subscription Error]:', err.message);
     });
-    callback(list);
-  }, (err) => {
-    console.warn('[Transactions Subscription Error]:', err.message);
-  });
+  } catch (err) {
+    console.warn('[Transactions Subscription Init Error]:', err.message);
+    return () => {};
+  }
 }
 
 /**
@@ -119,13 +129,18 @@ export function subscribeToTransactions(callback) {
  */
 export function subscribeToOverShortageResolutions(callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'over_shortage_resolutions');
-  return onSnapshot(colRef, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(list);
-  }, (err) => {
-    console.warn('[OverShortage Subscription Error]:', err.message);
-  });
+  try {
+    const colRef = collection(db, 'over_shortage_resolutions');
+    return onSnapshot(colRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(list);
+    }, (err) => {
+      console.warn('[OverShortage Subscription Error]:', err.message);
+    });
+  } catch (err) {
+    console.warn('[OverShortage Subscription Init Error]:', err.message);
+    return () => {};
+  }
 }
 
 /**
@@ -133,14 +148,18 @@ export function subscribeToOverShortageResolutions(callback) {
  */
 export function subscribeToCashierReports(callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'cashier_daily_reports');
-  const q = query(colRef, limit(100));
-  return onSnapshot(q, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(list);
-  }, (err) => {
-    console.warn('[Cashier Subscription Error]:', err.message);
-  });
+  try {
+    const colRef = collection(db, 'cashier_daily_reports');
+    return onSnapshot(colRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(list);
+    }, (err) => {
+      console.warn('[Cashier Subscription Error]:', err.message);
+    });
+  } catch (err) {
+    console.warn('[Cashier Subscription Init Error]:', err.message);
+    return () => {};
+  }
 }
 
 /**
@@ -148,14 +167,18 @@ export function subscribeToCashierReports(callback) {
  */
 export function subscribeToExpenses(callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'expense_entries');
-  const q = query(colRef, limit(100));
-  return onSnapshot(q, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(list);
-  }, (err) => {
-    console.warn('[Expense Subscription Error]:', err.message);
-  });
+  try {
+    const colRef = collection(db, 'expense_entries');
+    return onSnapshot(colRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(list);
+    }, (err) => {
+      console.warn('[Expense Subscription Error]:', err.message);
+    });
+  } catch (err) {
+    console.warn('[Expense Subscription Init Error]:', err.message);
+    return () => {};
+  }
 }
 
 /**
@@ -163,12 +186,16 @@ export function subscribeToExpenses(callback) {
  */
 export function subscribeToPurchases(callback) {
   if (!db) return () => {};
-  const colRef = collection(db, 'purchases');
-  const q = query(colRef, limit(100));
-  return onSnapshot(q, (snapshot) => {
-    const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    callback(list);
-  }, (err) => {
-    console.warn('[Purchase Subscription Error]:', err.message);
-  });
+  try {
+    const colRef = collection(db, 'purchases');
+    return onSnapshot(colRef, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(list);
+    }, (err) => {
+      console.warn('[Purchase Subscription Error]:', err.message);
+    });
+  } catch (err) {
+    console.warn('[Purchase Subscription Init Error]:', err.message);
+    return () => {};
+  }
 }

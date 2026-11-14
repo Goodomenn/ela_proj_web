@@ -36,8 +36,9 @@ import PosDevicesModal from './screens/PosDevicesModal';
 import RbacManagementModal from './screens/RbacManagementModal';
 import ApprovalsModal from './screens/ApprovalsModal';
 import VerificationModal from './screens/VerificationModal';
+import { AuthProvider } from './context/AuthContext';
 
-export default function App() {
+function AppContent() {
   const { user } = useAuth();
 
   // Navigation State
@@ -275,5 +276,13 @@ export default function App() {
         />
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
