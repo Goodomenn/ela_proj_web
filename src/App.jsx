@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from './context/AuthContext';
+import FintechSidebar from './components/FintechSidebar';
 import FintechBottomNav from './components/FintechBottomNav';
 import FintechDrawer from './components/FintechDrawer';
 import DashboardScreen from './screens/DashboardScreen';
@@ -121,6 +122,8 @@ function AppContent() {
             onOpenOverShortage={() => setActiveSubScreen('over_shortage')}
             onOpenDailyBreakdown={() => setActiveSubScreen('daily_breakdown')}
             onOpenFilterBanks={() => setModalOpen('filter_banks')}
+            onOpenRecordCash={() => setModalOpen('record_cash')}
+            onOpenVerification={() => setModalOpen('verification')}
           />
         );
       case 'transactions':
@@ -176,105 +179,115 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070A10] flex justify-center font-sans antialiased selection:bg-[#00D1FF]/30 selection:text-white">
-      {/* Centered Application Container with Left & Right Desktop Margins */}
-      <div className="w-full max-w-2xl min-h-screen bg-[#0D121D] flex flex-col shadow-2xl relative border-x border-[#1E2635]">
-        {/* Active View */}
+    <div className="min-h-screen bg-[#070A10] flex font-sans antialiased text-white selection:bg-[#00D1FF]/30 selection:text-white">
+      {/* Persistent Desktop Sidebar (Hidden on mobile) */}
+      <FintechSidebar
+        activeTab={activeTab}
+        onChangeTab={handleTabChange}
+        onOpenPosIngestion={() => setModalOpen('pos_ingestion')}
+        onOpenRecordCash={() => setModalOpen('record_cash')}
+        onOpenVerification={() => setModalOpen('verification')}
+        onOpenExpenseEntry={() => setModalOpen('expense_entry')}
+        onOpenSmsForwarding={() => setModalOpen('sms_forwarding')}
+      />
+
+      {/* Main Web Content Canvas */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#0D121D] min-h-screen">
         <main className="flex-1 flex flex-col">
           {activeSubScreen ? renderSubScreen() : renderTabScreen()}
         </main>
 
-        {/* Bottom Navigation Hubs (Visible on main tabs) */}
+        {/* Mobile Bottom Navigation (Shown only on small screens) */}
         {!activeSubScreen && (
           <FintechBottomNav
             activeTab={activeTab}
             onChangeTab={handleTabChange}
           />
         )}
-
-        {/* Global Left Slide-out Drawer */}
-        <FintechDrawer
-          isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
-          onNavigate={handleTabChange}
-          onOpenSmsForwarding={() => setModalOpen('sms_forwarding')}
-          onOpenChangePassword={() => setModalOpen('change_password')}
-          onOpenReprocess={() => setModalOpen('reprocess')}
-          onOpenRawMessages={() => setModalOpen('bank_messages')}
-        />
-
-        {/* Modals & Dialogs */}
-        <PosIngestionModal
-          isOpen={modalOpen === 'pos_ingestion'}
-          onClose={() => setModalOpen(null)}
-        />
-        <RecordCashIncomeModal
-          isOpen={modalOpen === 'record_cash'}
-          onClose={() => setModalOpen(null)}
-        />
-        <ExpenseEntryModal
-          isOpen={modalOpen === 'expense_entry'}
-          onClose={() => setModalOpen(null)}
-        />
-        <CashierEntryModal
-          isOpen={modalOpen === 'cashier_entry'}
-          onClose={() => setModalOpen(null)}
-        />
-        <PurchaseEntryModal
-          isOpen={modalOpen === 'purchase_entry'}
-          onClose={() => setModalOpen(null)}
-        />
-        <GoodsReceivingModal
-          isOpen={modalOpen === 'goods_receiving'}
-          onClose={() => setModalOpen(null)}
-        />
-        <FilterBanksModal
-          isOpen={modalOpen === 'filter_banks'}
-          onClose={() => setModalOpen(null)}
-          selectedBanks={selectedBanks}
-          onToggleBank={toggleBank}
-        />
-        <ClearDataModal
-          isOpen={modalOpen === 'clear_data'}
-          onClose={() => setModalOpen(null)}
-        />
-        <ChangePasswordModal
-          isOpen={modalOpen === 'change_password'}
-          onClose={() => setModalOpen(null)}
-        />
-        <SmsForwardingModal
-          isOpen={modalOpen === 'sms_forwarding'}
-          onClose={() => setModalOpen(null)}
-        />
-        <ReprocessModal
-          isOpen={modalOpen === 'reprocess'}
-          onClose={() => setModalOpen(null)}
-        />
-        <BankMessagesModal
-          isOpen={modalOpen === 'bank_messages'}
-          onClose={() => setModalOpen(null)}
-        />
-        <ManageBanksModal
-          isOpen={modalOpen === 'manage_banks'}
-          onClose={() => setModalOpen(null)}
-        />
-        <PosDevicesModal
-          isOpen={modalOpen === 'pos_devices'}
-          onClose={() => setModalOpen(null)}
-        />
-        <RbacManagementModal
-          isOpen={modalOpen === 'rbac'}
-          onClose={() => setModalOpen(null)}
-        />
-        <ApprovalsModal
-          isOpen={modalOpen === 'approvals'}
-          onClose={() => setModalOpen(null)}
-        />
-        <VerificationModal
-          isOpen={modalOpen === 'verification'}
-          onClose={() => setModalOpen(null)}
-        />
       </div>
+
+      {/* Global Slide-out Drawer (for mobile / tablet screens) */}
+      <FintechDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onNavigate={handleTabChange}
+        onOpenSmsForwarding={() => setModalOpen('sms_forwarding')}
+        onOpenChangePassword={() => setModalOpen('change_password')}
+        onOpenReprocess={() => setModalOpen('reprocess')}
+        onOpenRawMessages={() => setModalOpen('bank_messages')}
+      />
+
+      {/* Modals & Dialogs */}
+      <PosIngestionModal
+        isOpen={modalOpen === 'pos_ingestion'}
+        onClose={() => setModalOpen(null)}
+      />
+      <RecordCashIncomeModal
+        isOpen={modalOpen === 'record_cash'}
+        onClose={() => setModalOpen(null)}
+      />
+      <ExpenseEntryModal
+        isOpen={modalOpen === 'expense_entry'}
+        onClose={() => setModalOpen(null)}
+      />
+      <CashierEntryModal
+        isOpen={modalOpen === 'cashier_entry'}
+        onClose={() => setModalOpen(null)}
+      />
+      <PurchaseEntryModal
+        isOpen={modalOpen === 'purchase_entry'}
+        onClose={() => setModalOpen(null)}
+      />
+      <GoodsReceivingModal
+        isOpen={modalOpen === 'goods_receiving'}
+        onClose={() => setModalOpen(null)}
+      />
+      <FilterBanksModal
+        isOpen={modalOpen === 'filter_banks'}
+        onClose={() => setModalOpen(null)}
+        selectedBanks={selectedBanks}
+        onToggleBank={toggleBank}
+      />
+      <ClearDataModal
+        isOpen={modalOpen === 'clear_data'}
+        onClose={() => setModalOpen(null)}
+      />
+      <ChangePasswordModal
+        isOpen={modalOpen === 'change_password'}
+        onClose={() => setModalOpen(null)}
+      />
+      <SmsForwardingModal
+        isOpen={modalOpen === 'sms_forwarding'}
+        onClose={() => setModalOpen(null)}
+      />
+      <ReprocessModal
+        isOpen={modalOpen === 'reprocess'}
+        onClose={() => setModalOpen(null)}
+      />
+      <BankMessagesModal
+        isOpen={modalOpen === 'bank_messages'}
+        onClose={() => setModalOpen(null)}
+      />
+      <ManageBanksModal
+        isOpen={modalOpen === 'manage_banks'}
+        onClose={() => setModalOpen(null)}
+      />
+      <PosDevicesModal
+        isOpen={modalOpen === 'pos_devices'}
+        onClose={() => setModalOpen(null)}
+      />
+      <RbacManagementModal
+        isOpen={modalOpen === 'rbac'}
+        onClose={() => setModalOpen(null)}
+      />
+      <ApprovalsModal
+        isOpen={modalOpen === 'approvals'}
+        onClose={() => setModalOpen(null)}
+      />
+      <VerificationModal
+        isOpen={modalOpen === 'verification'}
+        onClose={() => setModalOpen(null)}
+      />
     </div>
   );
 }

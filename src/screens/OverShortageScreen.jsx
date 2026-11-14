@@ -8,7 +8,8 @@ import {
   TrendingDown, 
   Calendar,
   X,
-  FileCheck
+  FileCheck,
+  Scale
 } from 'lucide-react';
 import FintechHeader from '../components/FintechHeader';
 import { FintechCard, FintechBadge } from '../components/FintechCard';
@@ -108,93 +109,125 @@ export default function OverShortageScreen({ onBack }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col pb-6">
+    <div className="flex-1 flex flex-col min-h-screen">
       <FintechHeader
-        title="Over & Shortage"
-        subtitle="DUAL-SOURCE RECONCILIATION"
+        title="Over & Shortage Dual-Source Reconciliation"
+        subtitle="CASHIER DRAWER TOTALS VS POS INCOME VARIANCE"
+        category="Reconciliation Engine"
         showBackButton={true}
         showMenu={false}
         onBack={onBack}
         actions={
           <button
             onClick={() => setShowRules(true)}
-            className="p-2 rounded-xl bg-[#161C28] border border-[#1E2635] text-[#00D1FF] hover:border-[#00D1FF]/50"
-            title="Calculation Rules"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161C28] border border-[#1E2635] text-[#00D1FF] hover:border-[#00D1FF]/50 text-xs font-bold transition-colors"
           >
-            <Info size={17} />
+            <Info size={14} />
+            <span className="hidden sm:inline">Calculation Logic</span>
           </button>
         }
       />
 
-      <div className="px-5 pt-3 space-y-3">
-        {sortedDates.length === 0 ? (
-          <div className="p-8 text-center bg-[#161C28]/50 border border-[#1E2635] rounded-2xl">
-            <CheckCircle2 size={32} className="mx-auto text-[#00D1FF] mb-2" />
-            <h4 className="text-sm font-bold text-white">No Reconciliation Records</h4>
-            <p className="text-xs text-[#8E99AE] mt-1">Upload POS sales or log cashier reports to trigger reconciliation.</p>
+      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Banner Card */}
+        <div className="p-6 bg-[#161C28] border border-[#1E2635] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Scale size={16} className="text-[#00D1FF]" />
+              <span className="text-[10px] font-bold text-[#00D1FF] tracking-wider uppercase">
+                Variance Ledger
+              </span>
+            </div>
+            <h2 className="text-xl font-black text-white">Daily POS vs Cashier Reconciliations</h2>
+            <p className="text-xs text-[#8E99AE] mt-0.5 max-w-xl">
+              Cross-references daily POS machine sales with actual money received and counted by cashiers.
+            </p>
           </div>
-        ) : (
-          sortedDates.map((item) => {
-            const resolution = resolutions.find(r => (r.date || r.id) === item.date);
-            const isResolved = !!resolution;
-            const diff = item.cashierSales - item.posSales;
-            const isOver = diff > 0.01;
-            const isShort = diff < -0.01;
-            const isBalanced = !isOver && !isShort;
 
-            return (
-              <FintechCard key={item.date} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={15} className="text-[#00D1FF]" />
-                    <span className="text-xs font-bold text-white">{item.date}</span>
-                  </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1.5 rounded-xl bg-[#0D121D] border border-[#1E2635] text-xs font-bold text-[#00FF94]">
+              {sortedDates.length} Operating Dates
+            </span>
+          </div>
+        </div>
 
-                  <FintechBadge 
-                    label={isResolved ? `SETTLED (${resolution.resolvedType || 'RESOLVED'})` : isBalanced ? 'BALANCED' : isOver ? 'OVER' : 'SHORTAGE'}
-                    color={isResolved ? '#00FF94' : isBalanced ? '#00D1FF' : isOver ? '#FFB800' : '#FF4D4D'}
-                  />
-                </div>
+        {/* Reconciliations Web Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {sortedDates.length === 0 ? (
+            <div className="col-span-full p-12 text-center bg-[#161C28]/50 border border-[#1E2635] rounded-2xl">
+              <CheckCircle2 size={36} className="mx-auto text-[#00D1FF] mb-3" />
+              <h4 className="text-sm font-bold text-white">No Reconciliation Records</h4>
+              <p className="text-xs text-[#8E99AE] mt-1">Upload POS sales or log cashier reports to trigger dual-source reconciliation.</p>
+            </div>
+          ) : (
+            sortedDates.map((item) => {
+              const resolution = resolutions.find(r => (r.date || r.id) === item.date);
+              const isResolved = !!resolution;
+              const diff = item.cashierSales - item.posSales;
+              const isOver = diff > 0.01;
+              const isShort = diff < -0.01;
+              const isBalanced = !isOver && !isShort;
 
-                <div className="grid grid-cols-3 gap-2 py-2 border-y border-[#1E2635] text-xs">
+              return (
+                <div key={item.date} className="p-5 bg-[#161C28] border border-[#1E2635] rounded-2xl space-y-4 flex flex-col justify-between">
                   <div>
-                    <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">POS Total</span>
-                    <span className="text-white font-semibold">{formatETB(item.posSales, 0)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">Cashier Total</span>
-                    <span className="text-white font-semibold">{formatETB(item.cashierSales, 0)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">Variance</span>
-                    <span className={`font-bold ${isOver ? 'text-[#00FF94]' : isShort ? 'text-[#FF4D4D]' : 'text-white'}`}>
-                      {diff > 0 ? `+${formatETB(diff, 0)}` : formatETB(diff, 0)}
-                    </span>
-                  </div>
-                </div>
+                    <div className="flex items-center justify-between pb-3 border-b border-[#1E2635]">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={15} className="text-[#00D1FF]" />
+                        <span className="text-xs font-bold text-white">{item.date}</span>
+                      </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-[#8E99AE]">
-                    {isResolved ? `Settled by ${resolution.resolvedBy || 'Admin'}` : 'Requires verification'}
-                  </span>
-                  
-                  <button
-                    onClick={() => handleOpenResolve(item, diff)}
-                    className="px-3 py-1.5 rounded-lg bg-[#00D1FF]/10 border border-[#00D1FF]/40 text-[#00D1FF] hover:bg-[#00D1FF]/20 text-xs font-bold transition-colors"
-                  >
-                    {isResolved ? 'Edit Settlement' : 'Settle Discrepancy'}
-                  </button>
+                      <FintechBadge 
+                        label={isResolved ? `SETTLED (${resolution.resolvedType || 'RESOLVED'})` : isBalanced ? 'BALANCED' : isOver ? 'OVER' : 'SHORTAGE'}
+                        color={isResolved ? '#00FF94' : isBalanced ? '#00D1FF' : isOver ? '#FFB800' : '#FF4D4D'}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-3 border-b border-[#1E2635] text-xs">
+                      <div className="p-2 rounded-lg bg-[#0D121D] border border-[#1E2635]">
+                        <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">POS Total</span>
+                        <span className="text-white font-bold mt-0.5 block">{formatETB(item.posSales, 0)}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[#0D121D] border border-[#1E2635]">
+                        <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">Cashier Total</span>
+                        <span className="text-white font-bold mt-0.5 block">{formatETB(item.cashierSales, 0)}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[#0D121D] border border-[#1E2635]">
+                        <span className="text-[10px] text-[#8E99AE] uppercase font-bold block">Variance</span>
+                        <span className={`font-bold mt-0.5 block ${isOver ? 'text-[#00FF94]' : isShort ? 'text-[#FF4D4D]' : 'text-white'}`}>
+                          {diff > 0 ? `+${formatETB(diff, 0)}` : formatETB(diff, 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-xs text-[#8E99AE]">
+                      {isResolved ? (
+                        <span>Settled by <strong className="text-white">{resolution.resolvedBy || 'Admin'}</strong></span>
+                      ) : (
+                        <span className="text-[#FFB800]">Pending auditor settlement</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#1E2635]">
+                    <button
+                      onClick={() => handleOpenResolve(item, diff)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-[#00D1FF]/10 hover:bg-[#00D1FF]/20 border border-[#00D1FF]/40 text-[#00D1FF] text-xs font-bold transition-colors"
+                    >
+                      {isResolved ? 'Edit Settlement' : 'Settle Discrepancy'}
+                    </button>
+                  </div>
                 </div>
-              </FintechCard>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Settlement Modal */}
       {resolvingDate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#161C28] border border-[#1E2635] rounded-2xl p-5 space-y-4">
+          <div className="w-full max-w-lg bg-[#161C28] border border-[#1E2635] rounded-2xl p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#1E2635]">
               <h3 className="text-sm font-bold text-white">Settle Day: {resolvingDate}</h3>
               <button onClick={() => setResolvingDate(null)} className="text-[#8E99AE] hover:text-white">
@@ -203,14 +236,14 @@ export default function OverShortageScreen({ onBack }) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1">Settlement Type</label>
+              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1.5">Settlement Type</label>
               <div className="grid grid-cols-3 gap-2">
                 {['BALANCED', 'OVER', 'SHORT'].map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setResolveType(t)}
-                    className={`py-2 text-xs font-bold rounded-lg border transition-colors ${
+                    className={`py-2.5 text-xs font-bold rounded-xl border transition-colors ${
                       resolveType === t 
                         ? 'bg-[#00D1FF]/15 border-[#00D1FF] text-[#00D1FF]' 
                         : 'bg-[#0D121D] border-[#1E2635] text-[#8E99AE]'
@@ -223,23 +256,24 @@ export default function OverShortageScreen({ onBack }) {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1">Resolved Amount (ETB)</label>
+              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1">Settlement Amount (ETB)</label>
               <input
                 type="number"
+                step="any"
                 value={resolveAmount}
                 onChange={(e) => setResolveAmount(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs focus:outline-none focus:border-[#00D1FF]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs font-bold focus:outline-none focus:border-[#00D1FF]"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1">Settlement Notes</label>
+              <label className="text-[10px] font-bold text-[#8E99AE] uppercase block mb-1">Audit Notes</label>
               <textarea
                 value={resolveNotes}
                 onChange={(e) => setResolveNotes(e.target.value)}
-                placeholder="Reason for variance, cash drawer recount..."
+                placeholder="Reason for discrepancy adjustment..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs focus:outline-none focus:border-[#00D1FF]"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs focus:outline-none focus:border-[#00D1FF]"
               />
             </div>
 
@@ -247,7 +281,7 @@ export default function OverShortageScreen({ onBack }) {
               <button
                 type="button"
                 onClick={() => setResolvingDate(null)}
-                className="px-4 py-2 text-xs font-bold text-[#8E99AE] hover:text-white"
+                className="px-4 py-2 rounded-xl bg-[#0D121D] text-[#8E99AE] text-xs font-bold"
               >
                 Cancel
               </button>
@@ -255,7 +289,7 @@ export default function OverShortageScreen({ onBack }) {
                 type="button"
                 disabled={saving}
                 onClick={handleSaveResolution}
-                className="px-4 py-2 rounded-xl bg-[#00D1FF] text-[#0D121D] text-xs font-bold hover:bg-[#00D1FF]/90"
+                className="px-5 py-2 rounded-xl bg-[#00D1FF] text-[#0D121D] text-xs font-bold shadow-lg shadow-[#00D1FF]/20"
               >
                 {saving ? 'Saving...' : 'Save Settlement'}
               </button>
@@ -267,39 +301,26 @@ export default function OverShortageScreen({ onBack }) {
       {/* Rules Modal */}
       {showRules && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#161C28] border border-[#1E2635] rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#1E2635]">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Info size={16} className="text-[#00D1FF]" />
-                <span>Reconciliation Calculation Rules</span>
-              </h3>
+          <div className="w-full max-w-md bg-[#161C28] border border-[#1E2635] rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1E2635]">
+              <h3 className="text-sm font-bold text-white">Reconciliation Logic</h3>
               <button onClick={() => setShowRules(false)} className="text-[#8E99AE] hover:text-white">
                 <X size={18} />
               </button>
             </div>
-
-            <div className="space-y-2.5 text-xs text-[#8E99AE] leading-relaxed">
+            <div className="space-y-3 text-xs text-[#8E99AE] leading-relaxed">
               <p>
-                <strong className="text-white">1. Dual-Source Principle:</strong> Compares POS machine registered receipts against manual Cashier closing drawer reports.
+                <strong className="text-white block mb-0.5">Dual-Source Math:</strong>
+                Variance = (Cashier Total Received) - (POS Register Total Sales).
               </p>
               <p>
-                <strong className="text-white">2. Variance Formula:</strong>
-                <code className="block mt-1 p-2 rounded bg-[#0D121D] text-[#00D1FF] font-mono">
-                  Variance = Cashier Reported Sales - Ingested POS Sales
-                </code>
+                <strong className="text-white block mb-0.5">Over (+):</strong>
+                Cashier physically collected more cash/transfers than POS rang up.
               </p>
               <p>
-                <strong className="text-white">3. Settlements:</strong> Unsettled days remain flagged. Once audited by management, the day is marked as SETTLED in Firestore.
+                <strong className="text-white block mb-0.5">Shortage (-):</strong>
+                Cash drawer or bank deposits are lower than registered POS totals.
               </p>
-            </div>
-
-            <div className="pt-2 text-right">
-              <button
-                onClick={() => setShowRules(false)}
-                className="px-4 py-1.5 rounded-xl bg-[#00D1FF] text-[#0D121D] text-xs font-bold"
-              >
-                Got It
-              </button>
             </div>
           </div>
         </div>

@@ -17,7 +17,7 @@ export const TABS = [
 
 export default function FintechBottomNav({ activeTab, onChangeTab }) {
   return (
-    <nav className="sticky bottom-0 z-30 bg-[#161C28] border-t border-[#1E2635] px-2 py-2 shadow-lg">
+    <nav className="md:hidden sticky bottom-0 z-30 bg-[#161C28] border-t border-[#1E2635] px-2 py-2 shadow-lg">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
