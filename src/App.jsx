@@ -38,14 +38,23 @@ import RbacManagementModal from './screens/RbacManagementModal';
 import ApprovalsModal from './screens/ApprovalsModal';
 import VerificationModal from './screens/VerificationModal';
 import { AuthProvider } from './context/AuthContext';
+import { AppPermissions } from './services/rbacService';
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, hasPermission, hasAnyPermission, isAdmin } = useAuth();
 
   // Navigation State
   const [activeTab, setActiveTab] = useState('home');
   const [activeSubScreen, setActiveSubScreen] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // If activeTab is settings but user lacks settings permission, fallback to home
+  React.useEffect(() => {
+    if (activeTab === 'settings' && !isAdmin && !hasPermission(AppPermissions.settingsView)) {
+      setActiveTab('home');
+      setActiveSubScreen(null);
+    }
+  }, [activeTab, isAdmin, hasPermission(AppPermissions.settingsView)]);
 
   // Modals State
   const [modalOpen, setModalOpen] = useState(null); // 'pos_ingestion', 'record_cash', etc.
@@ -63,8 +72,11 @@ function AppContent() {
     return <LoginScreen />;
   }
 
-  // Handle Tab Switch (clears sub-screens)
+  // Handle Tab Switch (clears sub-screens & validates permissions)
   const handleTabChange = (tabId) => {
+    if (tabId === 'settings' && !isAdmin && !hasPermission(AppPermissions.settingsView)) {
+      return;
+    }
     setActiveTab(tabId);
     setActiveSubScreen(null);
   };

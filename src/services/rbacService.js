@@ -260,6 +260,33 @@ export async function getEffectivePermissions(userDoc) {
 }
 
 /**
+ * Resolves the role names for a user from their roleIds in Firestore
+ */
+export async function getUserRoleNames(userDoc) {
+  if (!userDoc) return [];
+  if (userDoc.role === 'admin' || userDoc.role === 'ADMIN') {
+    return ['Root Administrator'];
+  }
+  const roleIds = userDoc.roleIds || [];
+  if (!Array.isArray(roleIds) || roleIds.length === 0) {
+    return ['No Role Assigned'];
+  }
+  const names = [];
+  if (!db) return names;
+  for (const roleId of roleIds) {
+    try {
+      const snap = await getDoc(doc(db, 'roles', roleId));
+      if (snap.exists() && snap.data()?.name) {
+        names.push(snap.data().name);
+      }
+    } catch (err) {
+      console.warn(`[Get Role Name Error for ${roleId}]:`, err.message);
+    }
+  }
+  return names.length > 0 ? names : ['Staff'];
+}
+
+/**
  * Subscribes to pending user registration requests in Firestore
  */
 export function subscribeToPendingUsers(callback) {

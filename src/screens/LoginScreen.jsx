@@ -131,7 +131,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter username"
+                    placeholder="Enter username (e.g. dani, ela_trading)"
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs focus:outline-none focus:border-[#00D1FF] transition-colors"
                     required
                   />
@@ -148,7 +148,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password (optional for demo)"
+                    placeholder="Enter password"
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0D121D] border border-[#1E2635] text-white text-xs focus:outline-none focus:border-[#00D1FF] transition-colors"
                   />
                 </div>
@@ -164,10 +164,57 @@ export default function LoginScreen({ onLoginSuccess }) {
               </button>
             </form>
 
-            <div className="pt-2 text-center border-t border-[#1E2635]/60">
-              <p className="text-[11px] text-[#8E99AE]">
-                Default manager account: <strong className="text-white font-mono">dani</strong>
-              </p>
+            {/* Quick Switch Profiles */}
+            <div className="pt-3 border-t border-[#1E2635]/60 space-y-2">
+              <span className="text-[10px] font-bold text-[#8E99AE] uppercase tracking-wider block">
+                Quick Select Live Accounts:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setUsername('dani'); setPassword('1234'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    username === 'dani'
+                      ? 'bg-[#00D1FF]/20 border-[#00D1FF]/60 text-[#00D1FF]'
+                      : 'bg-[#0D121D] border-[#1E2635] text-[#8E99AE] hover:text-white'
+                  }`}
+                >
+                  👑 dani (Root Admin)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUsername('ela_trading'); setPassword('1234567'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    username === 'ela_trading'
+                      ? 'bg-[#00D1FF]/20 border-[#00D1FF]/60 text-[#00D1FF]'
+                      : 'bg-[#0D121D] border-[#1E2635] text-[#8E99AE] hover:text-white'
+                  }`}
+                >
+                  ⚡ ela_trading (Admin small)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUsername('dann'); setPassword('12345'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    username === 'dann'
+                      ? 'bg-[#00D1FF]/20 border-[#00D1FF]/60 text-[#00D1FF]'
+                      : 'bg-[#0D121D] border-[#1E2635] text-[#8E99AE] hover:text-white'
+                  }`}
+                >
+                  💵 dann (Cashier)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUsername('filly'); setPassword('1234'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    username === 'filly'
+                      ? 'bg-[#00D1FF]/20 border-[#00D1FF]/60 text-[#00D1FF]'
+                      : 'bg-[#0D121D] border-[#1E2635] text-[#8E99AE] hover:text-white'
+                  }`}
+                >
+                  📦 filly (Purchase)
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -16,14 +16,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-export const MAIN_NAV_ITEMS = [
-  { id: 'home', label: 'Dashboard', subtitle: 'System Overview & KPI', icon: LayoutDashboard },
-  { id: 'transactions', label: 'Transactions', subtitle: 'SMS & Bank Ledger', icon: ArrowLeftRight },
-  { id: 'audit', label: 'Audit & Log Hub', subtitle: 'Central Intelligence', icon: CheckCheck },
-  { id: 'fb', label: 'F&B Operations', subtitle: 'Purchasing & Expenses', icon: UtensilsCrossed },
-  { id: 'settings', label: 'Settings', subtitle: 'Hardware & System Admin', icon: Settings },
-];
+import { AppPermissions } from '../services/rbacService';
 
 export default function FintechSidebar({
   activeTab,
@@ -34,9 +27,68 @@ export default function FintechSidebar({
   onOpenExpenseEntry,
   onOpenSmsForwarding
 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, hasAnyPermission, isAdmin } = useAuth();
   const username = user?.username || 'dani';
-  const roleLabel = (user?.roleLabel || user?.role || 'MANAGER').toUpperCase();
+  const roleLabel = (user?.roleLabel || (isAdmin ? 'ADMIN' : 'STAFF')).toUpperCase();
+
+  // Filter navigation hubs strictly by RBAC permissions
+  const navItems = [
+    { 
+      id: 'home', 
+      label: 'Dashboard', 
+      subtitle: 'System Overview & KPI', 
+      icon: LayoutDashboard,
+      visible: isAdmin || hasPermission(AppPermissions.dashboard)
+    },
+    { 
+      id: 'transactions', 
+      label: 'Transactions', 
+      subtitle: 'SMS & Bank Ledger', 
+      icon: ArrowLeftRight,
+      visible: isAdmin || hasAnyPermission([AppPermissions.transactions, 'transaction_history', AppPermissions.myTransactions])
+    },
+    { 
+      id: 'audit', 
+      label: 'Audit & Log Hub', 
+      subtitle: 'Central Intelligence', 
+      icon: CheckCheck,
+      visible: isAdmin || hasAnyPermission([
+        AppPermissions.auditHub, 
+        AppPermissions.reports, 
+        AppPermissions.expenseReports, 
+        AppPermissions.cashierReports, 
+        AppPermissions.goodsReceiving, 
+        AppPermissions.purchaseView
+      ])
+    },
+    { 
+      id: 'fb', 
+      label: 'F&B Operations', 
+      subtitle: 'Purchasing & Expenses', 
+      icon: UtensilsCrossed,
+      visible: isAdmin || hasAnyPermission([
+        AppPermissions.fbHub, 
+        AppPermissions.expenseEntry, 
+        AppPermissions.purchaseView, 
+        AppPermissions.goodsReceiving, 
+        AppPermissions.cashierEntry
+      ])
+    },
+    { 
+      id: 'settings', 
+      label: 'Settings', 
+      subtitle: 'Hardware & System Admin', 
+      icon: Settings,
+      visible: isAdmin || hasPermission(AppPermissions.settingsView)
+    },
+  ].filter(item => item.visible);
+
+  // Filter Quick Operations by specific granular permissions
+  const canPos = isAdmin || hasAnyPermission([AppPermissions.pos, AppPermissions.salesCenet, AppPermissions.salesLoop]);
+  const canRecordCash = isAdmin || hasPermission(AppPermissions.cashierEntry);
+  const canExpense = isAdmin || hasPermission(AppPermissions.expenseEntry);
+  const canVerify = isAdmin || hasAnyPermission([AppPermissions.auditHub, AppPermissions.transactions]);
+  const hasAnyQuickOp = canPos || canRecordCash || canExpense || canVerify;
 
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-[#0B0F19] border-r border-[#1E2635] shrink-0 h-screen sticky top-0 z-40 select-none">
@@ -73,7 +125,7 @@ export default function FintechSidebar({
           </div>
 
           <nav className="space-y-1">
-            {MAIN_NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 
@@ -115,68 +167,78 @@ export default function FintechSidebar({
           </nav>
         </div>
 
-        {/* Quick Workflows / Actions */}
-        <div>
-          <div className="px-3 mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[#8E99AE] uppercase tracking-wider">
-              Quick Operations
-            </span>
+        {/* Quick Workflows / Actions (Filtered by Permissions) */}
+        {hasAnyQuickOp && (
+          <div>
+            <div className="px-3 mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-[#8E99AE] uppercase tracking-wider">
+                Quick Operations
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {canPos && (
+                <button
+                  onClick={onOpenPosIngestion}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Calculator size={14} className="text-[#00D1FF]" />
+                    <span className="font-medium text-[11px]">POS Ingestion</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[#00D1FF] bg-[#00D1FF]/10 px-1.5 py-0.5 rounded border border-[#00D1FF]/30">
+                    UPLOAD
+                  </span>
+                </button>
+              )}
+
+              {canRecordCash && (
+                <button
+                  onClick={onOpenRecordCash}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Banknote size={14} className="text-[#00FF94]" />
+                    <span className="font-medium text-[11px]">Record Cash Income</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[#00FF94] bg-[#00FF94]/10 px-1.5 py-0.5 rounded border border-[#00FF94]/30">
+                    + CASH
+                  </span>
+                </button>
+              )}
+
+              {canExpense && (
+                <button
+                  onClick={onOpenExpenseEntry}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Receipt size={14} className="text-[#7C4DFF]" />
+                    <span className="font-medium text-[11px]">Log Daily Expense</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[#7C4DFF] bg-[#7C4DFF]/10 px-1.5 py-0.5 rounded border border-[#7C4DFF]/30">
+                    EXPENSE
+                  </span>
+                </button>
+              )}
+
+              {canVerify && (
+                <button
+                  onClick={onOpenVerification}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck size={14} className="text-[#FFB800]" />
+                    <span className="font-medium text-[11px]">Verify & Audit</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[#FFB800] bg-[#FFB800]/10 px-1.5 py-0.5 rounded border border-[#FFB800]/30">
+                    AUDIT
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
-
-          <div className="space-y-1.5">
-            <button
-              onClick={onOpenPosIngestion}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <Calculator size={14} className="text-[#00D1FF]" />
-                <span className="font-medium text-[11px]">POS Ingestion</span>
-              </div>
-              <span className="text-[9px] font-bold text-[#00D1FF] bg-[#00D1FF]/10 px-1.5 py-0.5 rounded border border-[#00D1FF]/30">
-                UPLOAD
-              </span>
-            </button>
-
-            <button
-              onClick={onOpenRecordCash}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <Banknote size={14} className="text-[#00FF94]" />
-                <span className="font-medium text-[11px]">Record Cash Income</span>
-              </div>
-              <span className="text-[9px] font-bold text-[#00FF94] bg-[#00FF94]/10 px-1.5 py-0.5 rounded border border-[#00FF94]/30">
-                + CASH
-              </span>
-            </button>
-
-            <button
-              onClick={onOpenExpenseEntry}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <Receipt size={14} className="text-[#7C4DFF]" />
-                <span className="font-medium text-[11px]">Log Daily Expense</span>
-              </div>
-              <span className="text-[9px] font-bold text-[#7C4DFF] bg-[#7C4DFF]/10 px-1.5 py-0.5 rounded border border-[#7C4DFF]/30">
-                EXPENSE
-              </span>
-            </button>
-
-            <button
-              onClick={onOpenVerification}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#161C28]/60 hover:bg-[#161C28] border border-[#1E2635] text-left text-xs text-white group transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck size={14} className="text-[#FFB800]" />
-                <span className="font-medium text-[11px]">Verify & Audit</span>
-              </div>
-              <span className="text-[9px] font-bold text-[#FFB800] bg-[#FFB800]/10 px-1.5 py-0.5 rounded border border-[#FFB800]/30">
-                AUDIT
-              </span>
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Telemetry info card */}
         <div className="p-3 rounded-xl bg-[#161C28]/40 border border-[#1E2635] space-y-1.5 text-[11px]">

@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import FintechHeader from '../components/FintechHeader';
 import { FintechCard, FintechBadge } from '../components/FintechCard';
+import { useAuth } from '../context/AuthContext';
+import { AppPermissions } from '../services/rbacService';
 
 export default function FbHubScreen({
   onMenuClick,
@@ -27,6 +29,8 @@ export default function FbHubScreen({
   onOpenManualSalesEntry,
   onOpenDailyCashierReport
 }) {
+  const { hasPermission, hasAnyPermission, isAdmin } = useAuth();
+
   const WORKFLOW_GROUPS = [
     {
       title: 'Expenses & Financial Outflows',
@@ -41,14 +45,16 @@ export default function FbHubScreen({
           badge: 'ADD RECORD',
           icon: Receipt,
           action: onOpenExpenseEntry,
-          isPrimary: true
+          isPrimary: true,
+          visible: isAdmin || hasPermission(AppPermissions.expenseEntry)
         },
         {
           name: 'Daily Expense Report',
           desc: 'View & audit today’s aggregated spending summary',
           badge: 'VIEW REPORT',
           icon: FileSpreadsheet,
-          action: onOpenDailyExpenseReport
+          action: onOpenDailyExpenseReport,
+          visible: isAdmin || hasPermission(AppPermissions.expenseReports)
         }
       ]
     },
@@ -65,14 +71,16 @@ export default function FbHubScreen({
           badge: 'NEW ORDER',
           icon: ShoppingCart,
           action: onOpenPurchaseEntry,
-          isPrimary: true
+          isPrimary: true,
+          visible: isAdmin || hasAnyPermission([AppPermissions.purchaseEdit, AppPermissions.purchaseEnterLog])
         },
         {
           name: 'Purchase Cost Audit',
           desc: 'Review historical supplier quotes and pricing fluctuations',
           badge: 'REPORTS',
           icon: FileText,
-          action: onOpenDailyReceivingReport
+          action: onOpenDailyReceivingReport,
+          visible: isAdmin || hasPermission(AppPermissions.purchaseView)
         }
       ]
     },
@@ -89,14 +97,16 @@ export default function FbHubScreen({
           badge: 'INCOMING DOCK',
           icon: PackageCheck,
           action: onOpenGoodsReceiving,
-          isPrimary: true
+          isPrimary: true,
+          visible: isAdmin || hasPermission(AppPermissions.goodsReceiving)
         },
         {
           name: 'Daily Receiving Report',
           desc: 'Log of confirmed and denied inventory entries for today',
           badge: 'DOCK LOG',
           icon: CheckSquare,
-          action: onOpenDailyReceivingReport
+          action: onOpenDailyReceivingReport,
+          visible: isAdmin || hasPermission(AppPermissions.goodsReceiving)
         }
       ]
     },
@@ -113,18 +123,25 @@ export default function FbHubScreen({
           badge: 'MANUAL ENTRY',
           icon: Calculator,
           action: onOpenManualSalesEntry,
-          isPrimary: true
+          isPrimary: true,
+          visible: isAdmin || hasPermission(AppPermissions.cashierEntry)
         },
         {
           name: 'Daily Cashier Report',
           desc: 'Verify drawer closing totals, physical cash counts & shortages',
           badge: 'SHIFT CLOSE',
           icon: FileText,
-          action: onOpenDailyCashierReport
+          action: onOpenDailyCashierReport,
+          visible: isAdmin || hasPermission(AppPermissions.cashierReports)
         }
       ]
     }
   ];
+
+  const visibleGroups = WORKFLOW_GROUPS.map(g => ({
+    ...g,
+    items: g.items.filter(item => item.visible)
+  })).filter(g => g.items.length > 0);
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
@@ -135,20 +152,24 @@ export default function FbHubScreen({
         onMenuClick={onMenuClick}
         actions={
           <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenExpenseEntry}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#7C4DFF] hover:bg-[#7C4DFF]/90 text-white text-xs font-bold transition-colors shadow-lg shadow-[#7C4DFF]/20"
-            >
-              <Plus size={14} />
-              <span className="hidden sm:inline">Add Expense</span>
-            </button>
-            <button
-              onClick={onOpenGoodsReceiving}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00D1FF] hover:bg-[#00D1FF]/90 text-[#0D121D] text-xs font-bold transition-colors shadow-lg shadow-[#00D1FF]/20"
-            >
-              <PackageCheck size={14} />
-              <span className="hidden sm:inline">Receive Goods</span>
-            </button>
+            {(isAdmin || hasPermission(AppPermissions.expenseEntry)) && (
+              <button
+                onClick={onOpenExpenseEntry}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#7C4DFF] hover:bg-[#7C4DFF]/90 text-white text-xs font-bold transition-colors shadow-lg shadow-[#7C4DFF]/20"
+              >
+                <Plus size={14} />
+                <span className="hidden sm:inline">Add Expense</span>
+              </button>
+            )}
+            {(isAdmin || hasPermission(AppPermissions.goodsReceiving)) && (
+              <button
+                onClick={onOpenGoodsReceiving}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00D1FF] hover:bg-[#00D1FF]/90 text-[#0D121D] text-xs font-bold transition-colors shadow-lg shadow-[#00D1FF]/20"
+              >
+                <PackageCheck size={14} />
+                <span className="hidden sm:inline">Receive Goods</span>
+              </button>
+            )}
           </div>
         }
       />
@@ -173,14 +194,14 @@ export default function FbHubScreen({
 
           <div className="flex items-center gap-2">
             <span className="px-3 py-1.5 rounded-xl bg-[#0D121D] border border-[#1E2635] text-xs text-[#00D1FF] font-bold">
-              4 Operational Pillars
+              {visibleGroups.length} Active Pillars
             </span>
           </div>
         </div>
 
         {/* 2x2 Operational Workflows Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {WORKFLOW_GROUPS.map((group, idx) => {
+          {visibleGroups.map((group, idx) => {
             const GroupIcon = group.icon;
 
             return (

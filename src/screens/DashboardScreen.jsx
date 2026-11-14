@@ -27,6 +27,8 @@ import {
   subscribeToOverShortageResolutions,
   formatETB 
 } from '../services/firebaseClient';
+import { useAuth } from '../context/AuthContext';
+import { AppPermissions } from '../services/rbacService';
 
 export default function DashboardScreen({
   onMenuClick,
@@ -37,6 +39,12 @@ export default function DashboardScreen({
   onOpenRecordCash,
   onOpenVerification
 }) {
+  const { hasPermission, hasAnyPermission, isAdmin } = useAuth();
+  const canPos = isAdmin || hasAnyPermission([AppPermissions.pos, AppPermissions.salesCenet, AppPermissions.salesLoop]);
+  const canAnalytics = isAdmin || hasAnyPermission([AppPermissions.reports, AppPermissions.auditHub, AppPermissions.dashboard]);
+  const canRecordCash = isAdmin || hasPermission(AppPermissions.cashierEntry);
+  const canVerify = isAdmin || hasAnyPermission([AppPermissions.auditHub, AppPermissions.transactions]);
+
   const [salesEntries, setSalesEntries] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [resolutions, setResolutions] = useState([]);
@@ -118,13 +126,15 @@ export default function DashboardScreen({
         onMenuClick={onMenuClick}
         actions={
           <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenPosIngestion}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00D1FF] hover:bg-[#00D1FF]/90 text-[#0D121D] text-xs font-bold transition-colors shadow-lg shadow-[#00D1FF]/10"
-            >
-              <Calculator size={14} />
-              <span className="hidden sm:inline">Upload POS</span>
-            </button>
+            {canPos && (
+              <button
+                onClick={onOpenPosIngestion}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00D1FF] hover:bg-[#00D1FF]/90 text-[#0D121D] text-xs font-bold transition-colors shadow-lg shadow-[#00D1FF]/10"
+              >
+                <Calculator size={14} />
+                <span className="hidden sm:inline">Upload POS</span>
+              </button>
+            )}
             <button
               onClick={onOpenFilterBanks}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] text-[#00D1FF] text-xs font-bold transition-colors"
@@ -339,96 +349,104 @@ export default function DashboardScreen({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Action Card 1: POS Ingestion */}
-                <div 
-                  onClick={onOpenPosIngestion}
-                  className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/50 rounded-2xl p-4 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3.5 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-[#00D1FF]/10 border border-[#00D1FF]/30 flex items-center justify-center text-[#00D1FF]">
-                      <Calculator size={20} />
+                {canPos && (
+                  <div 
+                    onClick={onOpenPosIngestion}
+                    className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/50 rounded-2xl p-4 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-3.5 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-[#00D1FF]/10 border border-[#00D1FF]/30 flex items-center justify-center text-[#00D1FF]">
+                        <Calculator size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#00D1FF] transition-colors">
+                          POS Ingestion
+                        </h4>
+                        <span className="text-[10px] font-semibold text-[#8E99AE]">
+                          CENET & LOOP SALES
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#00D1FF] transition-colors">
-                        POS Ingestion
-                      </h4>
-                      <span className="text-[10px] font-semibold text-[#8E99AE]">
-                        CENET & LOOP SALES
-                      </span>
-                    </div>
+                    <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
+                      Securely upload and parse daily register closure reports and shift summaries into Firestore.
+                    </p>
                   </div>
-                  <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
-                    Securely upload and parse daily register closure reports and shift summaries into Firestore.
-                  </p>
-                </div>
+                )}
 
                 {/* Action Card 2: Quick Analytics */}
-                <div 
-                  onClick={onOpenDailyBreakdown}
-                  className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#FFB800]/50 rounded-2xl p-4 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3.5 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-[#FFB800]/10 border border-[#FFB800]/30 flex items-center justify-center text-[#FFB800]">
-                      <BarChart2 size={20} />
+                {canAnalytics && (
+                  <div 
+                    onClick={onOpenDailyBreakdown}
+                    className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#FFB800]/50 rounded-2xl p-4 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-3.5 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-[#FFB800]/10 border border-[#FFB800]/30 flex items-center justify-center text-[#FFB800]">
+                        <BarChart2 size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#FFB800] transition-colors">
+                          Quick Analytics
+                        </h4>
+                        <span className="text-[10px] font-semibold text-[#8E99AE]">
+                          DAILY CASH FLOW
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#FFB800] transition-colors">
-                        Quick Analytics
-                      </h4>
-                      <span className="text-[10px] font-semibold text-[#8E99AE]">
-                        DAILY CASH FLOW
-                      </span>
-                    </div>
+                    <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
+                      View daily breakdown trends, liquidity charts, and variance analytics across all operating days.
+                    </p>
                   </div>
-                  <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
-                    View daily breakdown trends, liquidity charts, and variance analytics across all operating days.
-                  </p>
-                </div>
+                )}
 
                 {/* Action Card 3: Record Cash Income */}
-                <div 
-                  onClick={onOpenRecordCash}
-                  className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00FF94]/50 rounded-2xl p-4 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3.5 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-[#00FF94]/10 border border-[#00FF94]/30 flex items-center justify-center text-[#00FF94]">
-                      <Banknote size={20} />
+                {canRecordCash && (
+                  <div 
+                    onClick={onOpenRecordCash}
+                    className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00FF94]/50 rounded-2xl p-4 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-3.5 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-[#00FF94]/10 border border-[#00FF94]/30 flex items-center justify-center text-[#00FF94]">
+                        <Banknote size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#00FF94] transition-colors">
+                          Record Cash Income
+                        </h4>
+                        <span className="text-[10px] font-semibold text-[#8E99AE]">
+                          DIRECT DEPOSIT
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#00FF94] transition-colors">
-                        Record Cash Income
-                      </h4>
-                      <span className="text-[10px] font-semibold text-[#8E99AE]">
-                        DIRECT DEPOSIT
-                      </span>
-                    </div>
+                    <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
+                      Record non-POS cash income, cashier drawer manual handovers, and physical bank cash drops.
+                    </p>
                   </div>
-                  <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
-                    Record non-POS cash income, cashier drawer manual handovers, and physical bank cash drops.
-                  </p>
-                </div>
+                )}
 
-                {/* Action Card 4: Verification & Audit */}
-                <div 
-                  onClick={onOpenVerification}
-                  className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#7C4DFF]/50 rounded-2xl p-4 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3.5 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-[#7C4DFF]/10 border border-[#7C4DFF]/30 flex items-center justify-center text-[#7C4DFF]">
-                      <ShieldCheck size={20} />
+                {/* Action Card 4: Reconciliation & Verification */}
+                {canVerify && (
+                  <div 
+                    onClick={onOpenVerification}
+                    className="bg-[#161C28] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#7C4DFF]/50 rounded-2xl p-4 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-3.5 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-[#7C4DFF]/10 border border-[#7C4DFF]/30 flex items-center justify-center text-[#7C4DFF]">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#7C4DFF] transition-colors">
+                          Reconciliation & Verification
+                        </h4>
+                        <span className="text-[10px] font-semibold text-[#8E99AE]">
+                          SECURITY AUDIT
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#7C4DFF] transition-colors">
-                        Reconciliation & Verification
-                      </h4>
-                      <span className="text-[10px] font-semibold text-[#8E99AE]">
-                        SECURITY AUDIT
-                      </span>
-                    </div>
+                    <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
+                      Cross-examine forwarded SMS bank confirmations against customer transaction slips.
+                    </p>
                   </div>
-                  <p className="text-xs text-[#8E99AE] mt-1 leading-relaxed">
-                    Cross-examine forwarded SMS bank confirmations against customer transaction slips.
-                  </p>
-                </div>
+                )}
               </div>
             </div>
           </div>

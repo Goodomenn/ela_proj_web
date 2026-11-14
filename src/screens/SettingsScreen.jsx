@@ -21,6 +21,7 @@ import {
 import FintechHeader from '../components/FintechHeader';
 import { FintechCard, SectionHeader, FintechBadge } from '../components/FintechCard';
 import { useAuth } from '../context/AuthContext';
+import { AppPermissions } from '../services/rbacService';
 
 export default function SettingsScreen({
   onMenuClick,
@@ -32,7 +33,13 @@ export default function SettingsScreen({
   onOpenReprocess,
   onOpenClearData
 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, isAdmin } = useAuth();
+  const canRbac = isAdmin || hasPermission(AppPermissions.rbacView);
+  const canApprovals = isAdmin || hasPermission(AppPermissions.approvals);
+  const canManageBanks = isAdmin || hasPermission(AppPermissions.transactions);
+  const canReprocess = isAdmin || hasPermission(AppPermissions.auditHub);
+  const canErase = isAdmin || hasPermission(AppPermissions.settingsEraseData);
+
   const [forwardingEnabled, setForwardingEnabled] = useState(true);
   const [senderIds, setSenderIds] = useState(['CBE', '127', 'AWASH', 'TELEBIRR']);
   const [newSenderId, setNewSenderId] = useState('');
@@ -261,109 +268,119 @@ export default function SettingsScreen({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div
-                  onClick={onOpenRbac}
-                  className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/40 cursor-pointer transition-colors group"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[#00D1FF]/10 text-[#00D1FF] flex items-center justify-center mb-2.5">
-                    <ShieldAlert size={18} />
-                  </div>
-                  <h4 className="text-xs font-bold text-white group-hover:text-[#00D1FF] transition-colors">
-                    Access Control (RBAC)
-                  </h4>
-                  <p className="text-[11px] text-[#8E99AE] mt-1">
-                    Manage roles, granular PIN permissions & credentials
-                  </p>
-                </div>
-
-                <div
-                  onClick={onOpenApprovals}
-                  className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#339AF0]/40 cursor-pointer transition-colors group"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[#339AF0]/10 text-[#339AF0] flex items-center justify-center mb-2.5">
-                    <UserCheck size={18} />
-                  </div>
-                  <h4 className="text-xs font-bold text-white group-hover:text-[#339AF0] transition-colors">
-                    User Registration Approvals
-                  </h4>
-                  <p className="text-[11px] text-[#8E99AE] mt-1">
-                    Approve or reject pending access requests
-                  </p>
-                </div>
-
-                <div
-                  onClick={onOpenManageBanks}
-                  className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/40 cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-[#00D1FF]/10 text-[#00D1FF] flex items-center justify-center">
-                      <Building2 size={18} />
+                {canRbac && (
+                  <div
+                    onClick={onOpenRbac}
+                    className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/40 cursor-pointer transition-colors group"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[#00D1FF]/10 text-[#00D1FF] flex items-center justify-center mb-2.5">
+                      <ShieldAlert size={18} />
                     </div>
-                    <FintechBadge label="4 Active" color="#00D1FF" />
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#00D1FF] transition-colors">
+                      Access Control (RBAC)
+                    </h4>
+                    <p className="text-[11px] text-[#8E99AE] mt-1">
+                      Manage roles, granular PIN permissions & credentials
+                    </p>
                   </div>
-                  <h4 className="text-xs font-bold text-white group-hover:text-[#00D1FF] transition-colors">
-                    Manage Transfer Banks
-                  </h4>
-                  <p className="text-[11px] text-[#8E99AE] mt-1">
-                    Configure CBE & Telebirr deposit accounts
-                  </p>
-                </div>
+                )}
 
-                <div
-                  onClick={onOpenReprocess}
-                  className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#FFB800]/40 cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-[#FFB800]/10 text-[#FFB800] flex items-center justify-center">
-                      <Zap size={18} />
+                {canApprovals && (
+                  <div
+                    onClick={onOpenApprovals}
+                    className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#339AF0]/40 cursor-pointer transition-colors group"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[#339AF0]/10 text-[#339AF0] flex items-center justify-center mb-2.5">
+                      <UserCheck size={18} />
                     </div>
-                    <FintechBadge label="Audit" color="#FFB800" />
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#339AF0] transition-colors">
+                      User Registration Approvals
+                    </h4>
+                    <p className="text-[11px] text-[#8E99AE] mt-1">
+                      Approve or reject pending access requests
+                    </p>
                   </div>
-                  <h4 className="text-xs font-bold text-white group-hover:text-[#FFB800] transition-colors">
-                    Bank Data Reprocessing
-                  </h4>
-                  <p className="text-[11px] text-[#8E99AE] mt-1">
-                    Fix historical reconciliation & merge duplicates
-                  </p>
-                </div>
+                )}
+
+                {canManageBanks && (
+                  <div
+                    onClick={onOpenManageBanks}
+                    className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#00D1FF]/40 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-[#00D1FF]/10 text-[#00D1FF] flex items-center justify-center">
+                        <Building2 size={18} />
+                      </div>
+                      <FintechBadge label="4 Active" color="#00D1FF" />
+                    </div>
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#00D1FF] transition-colors">
+                      Manage Transfer Banks
+                    </h4>
+                    <p className="text-[11px] text-[#8E99AE] mt-1">
+                      Configure CBE & Telebirr deposit accounts
+                    </p>
+                  </div>
+                )}
+
+                {canReprocess && (
+                  <div
+                    onClick={onOpenReprocess}
+                    className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#1A2232] border border-[#1E2635] hover:border-[#FFB800]/40 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-[#FFB800]/10 text-[#FFB800] flex items-center justify-center">
+                        <Zap size={18} />
+                      </div>
+                      <FintechBadge label="Audit" color="#FFB800" />
+                    </div>
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#FFB800] transition-colors">
+                      Bank Data Reprocessing
+                    </h4>
+                    <p className="text-[11px] text-[#8E99AE] mt-1">
+                      Fix historical reconciliation & merge duplicates
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Restricted Data Management */}
-            <div className="bg-[#161C28] border border-[#FF4D4D]/30 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-[#1E2635]">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={16} className="text-[#FF4D4D]" />
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Data Management</h3>
+            {canErase && (
+              <div className="bg-[#161C28] border border-[#FF4D4D]/30 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-[#1E2635]">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-[#FF4D4D]" />
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Data Management</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-[#FF4D4D] bg-[#FF4D4D]/10 px-2 py-0.5 rounded border border-[#FF4D4D]/30">
+                    RESTRICTED
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold text-[#FF4D4D] bg-[#FF4D4D]/10 px-2 py-0.5 rounded border border-[#FF4D4D]/30">
-                  RESTRICTED
-                </span>
-              </div>
 
-              <div
-                onClick={onOpenClearData}
-                className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#FF4D4D]/5 border border-[#FF4D4D]/20 hover:border-[#FF4D4D]/50 cursor-pointer transition-colors flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-[#FF4D4D]/10 text-[#FF4D4D] flex items-center justify-center shrink-0">
-                    <Trash2 size={20} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white group-hover:text-[#FF4D4D] transition-colors">
-                        Clear All Sales Data
-                      </span>
-                      <FintechBadge label="Irreversible" color="#FF4D4D" />
+                <div
+                  onClick={onOpenClearData}
+                  className="p-4 rounded-xl bg-[#0D121D] hover:bg-[#FF4D4D]/5 border border-[#FF4D4D]/20 hover:border-[#FF4D4D]/50 cursor-pointer transition-colors flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#FF4D4D]/10 text-[#FF4D4D] flex items-center justify-center shrink-0">
+                      <Trash2 size={20} />
                     </div>
-                    <p className="text-[11px] text-[#8E99AE] mt-0.5">
-                      Wipe all uploaded records from Firestore cloud store & purge local cache
-                    </p>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white group-hover:text-[#FF4D4D] transition-colors">
+                          Clear All Sales Data
+                        </span>
+                        <FintechBadge label="Irreversible" color="#FF4D4D" />
+                      </div>
+                      <p className="text-[11px] text-[#8E99AE] mt-0.5">
+                        Wipe all uploaded records from Firestore cloud store & purge local cache
+                      </p>
+                    </div>
                   </div>
+                  <AlertTriangle size={18} className="text-[#FF4D4D] shrink-0" />
                 </div>
-                <AlertTriangle size={18} className="text-[#FF4D4D] shrink-0" />
               </div>
-            </div>
+            )}
 
             {/* Account & Session Card */}
             <div className="bg-[#161C28] border border-[#1E2635] rounded-2xl p-5 flex items-center justify-between">

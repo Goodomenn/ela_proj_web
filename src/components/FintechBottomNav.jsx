@@ -6,20 +6,62 @@ import {
   UtensilsCrossed, 
   Settings 
 } from 'lucide-react';
-
-export const TABS = [
-  { id: 'home', label: 'Home', icon: LayoutGrid },
-  { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { id: 'audit', label: 'Audit', icon: CheckCheck },
-  { id: 'fb', label: 'F&B Hub', icon: UtensilsCrossed },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
+import { useAuth } from '../context/AuthContext';
+import { AppPermissions } from '../services/rbacService';
 
 export default function FintechBottomNav({ activeTab, onChangeTab }) {
+  const { hasPermission, hasAnyPermission, isAdmin } = useAuth();
+
+  const tabs = [
+    { 
+      id: 'home', 
+      label: 'Home', 
+      icon: LayoutGrid,
+      visible: isAdmin || hasPermission(AppPermissions.dashboard)
+    },
+    { 
+      id: 'transactions', 
+      label: 'Transactions', 
+      icon: ArrowLeftRight,
+      visible: isAdmin || hasAnyPermission([AppPermissions.transactions, 'transaction_history', AppPermissions.myTransactions])
+    },
+    { 
+      id: 'audit', 
+      label: 'Audit', 
+      icon: CheckCheck,
+      visible: isAdmin || hasAnyPermission([
+        AppPermissions.auditHub, 
+        AppPermissions.reports, 
+        AppPermissions.expenseReports, 
+        AppPermissions.cashierReports, 
+        AppPermissions.goodsReceiving, 
+        AppPermissions.purchaseView
+      ])
+    },
+    { 
+      id: 'fb', 
+      label: 'F&B Hub', 
+      icon: UtensilsCrossed,
+      visible: isAdmin || hasAnyPermission([
+        AppPermissions.fbHub, 
+        AppPermissions.expenseEntry, 
+        AppPermissions.purchaseView, 
+        AppPermissions.goodsReceiving, 
+        AppPermissions.cashierEntry
+      ])
+    },
+    { 
+      id: 'settings', 
+      label: 'Settings', 
+      icon: Settings,
+      visible: isAdmin || hasPermission(AppPermissions.settingsView)
+    },
+  ].filter(t => t.visible);
+
   return (
     <nav className="md:hidden sticky bottom-0 z-30 bg-[#161C28] border-t border-[#1E2635] px-2 py-2 shadow-lg">
       <div className="flex items-center justify-around max-w-lg mx-auto">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 

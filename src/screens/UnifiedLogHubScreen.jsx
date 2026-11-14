@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import FintechHeader from '../components/FintechHeader';
 import { FintechCard, FintechBadge } from '../components/FintechCard';
+import { useAuth } from '../context/AuthContext';
+import { AppPermissions } from '../services/rbacService';
 
 export default function UnifiedLogHubScreen({
   onMenuClick,
@@ -27,6 +29,9 @@ export default function UnifiedLogHubScreen({
   onOpenPurchaseReports,
   onOpenPermissionDebugger
 }) {
+  const { hasPermission, hasAnyPermission, isAdmin } = useAuth();
+  const canViewRbac = isAdmin || hasPermission(AppPermissions.rbacView);
+
   const AUDIT_MODULES = [
     {
       id: 'sales_audit',
@@ -36,7 +41,8 @@ export default function UnifiedLogHubScreen({
       icon: BarChart3,
       color: '#00BFA5',
       badge: 'CENET & LOOP',
-      onClick: onOpenSalesAudit
+      onClick: onOpenSalesAudit,
+      visible: isAdmin || hasAnyPermission([AppPermissions.reports, AppPermissions.auditHub, AppPermissions.salesCenet, AppPermissions.salesLoop])
     },
     {
       id: 'expense_history',
@@ -46,7 +52,8 @@ export default function UnifiedLogHubScreen({
       icon: Receipt,
       color: '#7C4DFF',
       badge: 'FINANCIAL',
-      onClick: onOpenExpenseHistory
+      onClick: onOpenExpenseHistory,
+      visible: isAdmin || hasPermission(AppPermissions.expenseReports)
     },
     {
       id: 'cashier_logs',
@@ -56,7 +63,8 @@ export default function UnifiedLogHubScreen({
       icon: FileText,
       color: '#009688',
       badge: 'REGISTER',
-      onClick: onOpenCashierLogs
+      onClick: onOpenCashierLogs,
+      visible: isAdmin || hasPermission(AppPermissions.cashierReports)
     },
     {
       id: 'over_shortage',
@@ -66,7 +74,8 @@ export default function UnifiedLogHubScreen({
       icon: ArrowLeftRight,
       color: '#FFB800',
       badge: 'DISCREPANCIES',
-      onClick: onOpenOverShortage
+      onClick: onOpenOverShortage,
+      visible: isAdmin || hasAnyPermission([AppPermissions.reports, AppPermissions.auditHub])
     },
     {
       id: 'receiving_history',
@@ -76,7 +85,8 @@ export default function UnifiedLogHubScreen({
       icon: Package,
       color: '#FFA000',
       badge: 'LOGISTICS',
-      onClick: onOpenReceivingHistory
+      onClick: onOpenReceivingHistory,
+      visible: isAdmin || hasPermission(AppPermissions.goodsReceiving)
     },
     {
       id: 'purchase_reports',
@@ -86,9 +96,10 @@ export default function UnifiedLogHubScreen({
       icon: ShoppingCart,
       color: '#448AFF',
       badge: 'PROCUREMENT',
-      onClick: onOpenPurchaseReports
+      onClick: onOpenPurchaseReports,
+      visible: isAdmin || hasPermission(AppPermissions.purchaseView)
     },
-  ];
+  ].filter(m => m.visible);
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
@@ -97,7 +108,7 @@ export default function UnifiedLogHubScreen({
         subtitle="CENTRAL INTELLIGENCE & RECONCILIATION"
         category="Habesha Enterprise"
         onMenuClick={onMenuClick}
-        actions={
+        actions={canViewRbac ? (
           <div className="flex items-center gap-2">
             <button
               onClick={onOpenPermissionDebugger}
@@ -107,7 +118,7 @@ export default function UnifiedLogHubScreen({
               <span className="hidden sm:inline">RBAC Audit</span>
             </button>
           </div>
-        }
+        ) : null}
       />
 
       <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">

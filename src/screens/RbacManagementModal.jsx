@@ -551,9 +551,20 @@ export default function RbacManagementModal({ isOpen, onClose }) {
                           Root Admin
                         </span>
                       ) : (
-                        <span className="text-xs text-[#8E99AE]">
-                          {userRoleIds.length} {userRoleIds.length === 1 ? 'Role' : 'Roles'} Assigned
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                          {roles.filter(r => userRoleIds.includes(r.id)).length > 0 ? (
+                            roles.filter(r => userRoleIds.includes(r.id)).map(ar => (
+                              <span 
+                                key={ar.id} 
+                                className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-[#00D1FF]/15 border border-[#00D1FF]/40 text-[#00D1FF]"
+                              >
+                                {ar.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-[#8E99AE] italic">No Roles Assigned</span>
+                          )}
+                        </div>
                       )}
                     </div>
 
