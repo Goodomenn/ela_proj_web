@@ -80,28 +80,66 @@ export function formatETB(amount, decimals = 2) {
 }
 
 /**
+ * Normalizes bank name matching Flutter app logic
+ */
+export function normalizeBankName(name) {
+  if (!name) return 'Unknown';
+  const n = name.toString().trim().toUpperCase();
+  if (n === 'CASH') return 'Cash';
+  if (n === '127' || n === 'TELEBIRR') return 'Telebirr';
+  if (n === 'CBE' || n.includes('COMMERCIAL BANK')) return 'CBE';
+  if (n.includes('CBEBIRR') || n.includes('CBE BIRR')) return 'CBE Birr';
+  if (n.includes('AWASH')) return 'Awash Bank';
+  if (n.includes('ABYSSINIA') || n === 'BOA') return 'Bank of Abyssinia';
+  return name.toString().trim();
+}
+
+/**
+ * Extracts numeric balance from raw bank SMS text as fallback
+ */
+export function extractBalanceFromRawText(text) {
+  if (!text || typeof text !== 'string') return 0;
+  const m = text.match(/(?:current(?:\s+E-Money\s+Account)?\s+balance|balance\s+now|available\s+balance\s+is\s+now|account\s+balance)\s*(?:is|:)?\s*(?:ETB|Br\.?)?\s*([\d,]+\.?\d*)/i);
+  if (m && m[1]) {
+    const clean = m[1].replace(/,/g, '');
+    const num = parseFloat(clean);
+    if (!isNaN(num)) return num;
+  }
+  return 0;
+}
+
+/**
  * Normalizes raw Firestore transaction documents to match the Flutter app's schema
  */
 export function normalizeTransaction(d, fallbackId) {
   const data = typeof d.data === 'function' ? d.data() : d;
   const docId = fallbackId || d.id || data.id || '';
+  const rawMessage = data.rawText || data.rawBody || data.rawMessage || '';
 
   // 1. Amount in ETB: Flutter app stores totalAmountCents (integer)
   let amount = 0;
-  if (data.totalAmountCents != null) {
+  if (data.totalAmountCents != null && Number(data.totalAmountCents) > 0) {
     amount = Number(data.totalAmountCents) / 100.0;
-  } else if (data.totalAmount != null) {
+  } else if (data.totalAmount != null && Number(data.totalAmount) > 0) {
     amount = Number(data.totalAmount);
-  } else if (data.amount != null) {
+  } else if (data.amount != null && Number(data.amount) > 0) {
     amount = Number(data.amount);
+  } else if (rawMessage) {
+    const m = rawMessage.match(/(?:transferred|credited|debited|deposited|received|with)\s*(?:for\s+[^]+?\s+with)?\s*(?:ETB|Br\.?)?\s*([\d,]+\.?\d*)/i);
+    if (m && m[1]) {
+      const num = parseFloat(m[1].replace(/,/g, ''));
+      if (!isNaN(num)) amount = num;
+    }
   }
 
   // 2. Current Balance
   let currentBalance = 0;
-  if (data.currentBalanceCents != null) {
+  if (data.currentBalanceCents != null && Number(data.currentBalanceCents) > 0) {
     currentBalance = Number(data.currentBalanceCents) / 100.0;
-  } else if (data.currentBalance != null) {
+  } else if (data.currentBalance != null && Number(data.currentBalance) > 0) {
     currentBalance = Number(data.currentBalance);
+  } else {
+    currentBalance = extractBalanceFromRawText(rawMessage);
   }
 
   // 3. Date & Time parsing
@@ -122,6 +160,11 @@ export function normalizeTransaction(d, fallbackId) {
     dateObj = new Date();
   }
 
+  // Validate date
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    dateObj = new Date();
+  }
+
   // 4. Direction & Type: CREDITED/DEPOSITED are income (+), DEBITED/WITHDRAWN/TRANSFER are expense (-)
   const txType = (data.transactionType || '').toUpperCase();
   const isDebit = txType === 'DEBITED' || txType === 'WITHDRAWN' || txType === 'TRANSFER' || txType === 'FEE';
@@ -129,17 +172,22 @@ export function normalizeTransaction(d, fallbackId) {
   const isIncome = data.isIncome != null ? data.isIncome : (isCredit || !isDebit);
 
   // 5. Bank name normalization
-  let bankName = (data.bankName || data.senderNumber || 'Bank Transfer').toString().trim();
-  if (bankName === '127') bankName = 'Telebirr';
-  else if (bankName.toUpperCase().includes('COMMERCIAL BANK OF ETHIOPIA') || bankName.toUpperCase() === 'CBE') bankName = 'CBE';
-  else if (bankName.toUpperCase().includes('CBE BIRR') || bankName.toUpperCase().includes('CBEBIRR')) bankName = 'CBE Birr';
-  else if (bankName.toUpperCase().includes('AWASH')) bankName = 'Awash Bank';
-  else if (bankName.toUpperCase().includes('ABYSSINIA') || bankName.toUpperCase() === 'BOA') bankName = 'Bank of Abyssinia';
+  const bankName = normalizeBankName(data.bankName || data.senderNumber || 'Bank Transfer');
 
   const sender = data.sender || 'Unknown';
   const forwardedBy = data.forwardedBy || data.forwardedName || data.forwarderUsername || 'system';
-  const referenceCode = data.referenceCode || 'N/A';
-  const rawMessage = data.rawText || data.rawBody || data.rawMessage || '';
+  
+  let referenceCode = data.referenceCode || '';
+  if (!referenceCode || referenceCode === 'N/A') {
+    if (rawMessage) {
+      const m = rawMessage.match(/(?:transaction\s+number\s+is|Txn\s+ID:?|Ref:?|BranchReceipt\/)\s*([A-Z0-9]+)/i);
+      if (m && m[1]) referenceCode = m[1];
+      else referenceCode = 'N/A';
+    } else {
+      referenceCode = 'N/A';
+    }
+  }
+
   const isReconciled = !!data.isReconciled;
   const status = data.status || 'VERIFIED';
 
@@ -428,4 +476,74 @@ export async function deletePosDevice(deviceId) {
   if (!db) return;
   await deleteDoc(doc(db, 'pos_devices', deviceId));
 }
+
+/**
+ * Fetch all transactions for a specific user and bank from Firestore
+ */
+export async function fetchTransactionsByUserAndBank(username, bankName) {
+  if (!db || !username) return [];
+  try {
+    const q = query(
+      collection(db, 'transactions'),
+      where('forwardedBy', '==', username)
+    );
+    const snap = await getDocs(q);
+    const all = snap.docs.map(d => normalizeTransaction(d));
+    all.sort((a, b) => b.dateObj - a.dateObj);
+
+    const normTarget = normalizeBankName(bankName).toUpperCase();
+
+    const filtered = all.filter(tx => {
+      const normTx = normalizeBankName(tx.bankName).toUpperCase();
+      if (normTarget === 'TELEBIRR') {
+        return normTx === 'TELEBIRR' || normTx === '127';
+      }
+      if (normTarget === 'CBE') {
+        return (normTx === 'CBE' || normTx.includes('COMMERCIAL')) && !normTx.includes('BIRR');
+      }
+      if (normTarget === 'CBE BIRR' || normTarget === 'CBEBIRR') {
+        return normTx.includes('BIRR');
+      }
+      if (normTarget === 'AWASH BANK') {
+        return normTx.includes('AWASH');
+      }
+      if (normTarget === 'BANK OF ABYSSINIA') {
+        return normTx.includes('ABYSSINIA') || normTx === 'BOA';
+      }
+      if (normTarget === 'CASH') {
+        return normTx === 'CASH';
+      }
+      return normTx === normTarget;
+    });
+
+    return filtered;
+  } catch (err) {
+    console.warn('[Fetch Transactions by User and Bank Error]:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Calculates the opening/closing balance before a given date string (YYYY-MM-DD)
+ * Returns the currentBalance of the most recent transaction prior to that date.
+ */
+export function getClosingBalanceBefore(transactions, targetDateStr) {
+  if (!transactions || transactions.length === 0 || !targetDateStr) return 0;
+  
+  // Transactions are sorted descending by dateObj
+  for (const tx of transactions) {
+    if (!tx.dateObj) continue;
+    const y = tx.dateObj.getFullYear();
+    const m = String(tx.dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(tx.dateObj.getDate()).padStart(2, '0');
+    const txDateStr = `${y}-${m}-${d}`;
+    
+    if (txDateStr < targetDateStr && tx.currentBalance > 0) {
+      return tx.currentBalance;
+    }
+  }
+  return 0;
+}
+
+
 
