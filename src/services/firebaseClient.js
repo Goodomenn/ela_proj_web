@@ -361,3 +361,71 @@ export function subscribeToPurchases(callback) {
     return () => {};
   }
 }
+
+/**
+ * Default POS devices (2 for CENET, 2 for LOOP) matching phone app
+ */
+export const DEFAULT_POS_DEVICES = [
+  { id: 'CENET_device_1', name: 'Main Dining Counter', type: 'CENET', location: 'Hall A', status: 'ONLINE', isSyncing: true },
+  { id: 'CENET_device_2', name: 'VIP Lounge Counter', type: 'CENET', location: 'Lounge Area', status: 'ONLINE', isSyncing: true },
+  { id: 'LOOP_device_1', name: 'Butchery Counter', type: 'LOOP', location: 'Counter 1', status: 'ONLINE', isSyncing: true },
+  { id: 'LOOP_device_2', name: 'Liquor Counter', type: 'LOOP', location: 'Counter 2', status: 'ONLINE', isSyncing: true },
+];
+
+/**
+ * Real-time listener for POS hardware devices (stored in pos_devices)
+ */
+export function subscribeToPosDevices(callback) {
+  if (!db) {
+    callback(DEFAULT_POS_DEVICES);
+    return () => {};
+  }
+  try {
+    const colRef = collection(db, 'pos_devices');
+    return onSnapshot(colRef, async (snapshot) => {
+      if (snapshot.empty) {
+        // Seed initial default devices so CENET and LOOP both have their 2 devices
+        try {
+          for (const dev of DEFAULT_POS_DEVICES) {
+            await setDoc(doc(db, 'pos_devices', dev.id), dev);
+          }
+        } catch (e) {
+          console.warn('[POS Device Seed Error]:', e.message);
+        }
+        callback(DEFAULT_POS_DEVICES);
+        return;
+      }
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      callback(list);
+    }, (err) => {
+      console.warn('[POS Device Subscription Error]:', err.message);
+      callback(DEFAULT_POS_DEVICES);
+    });
+  } catch (err) {
+    console.warn('[POS Device Subscription Init Error]:', err.message);
+    callback(DEFAULT_POS_DEVICES);
+    return () => {};
+  }
+}
+
+/**
+ * Save / Update a POS Device in Firestore
+ */
+export async function savePosDevice(device) {
+  if (!db) return;
+  const id = device.id || `${device.type}_${Date.now()}`;
+  await setDoc(doc(db, 'pos_devices', id), {
+    ...device,
+    id,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+/**
+ * Delete a POS Device from Firestore
+ */
+export async function deletePosDevice(deviceId) {
+  if (!db) return;
+  await deleteDoc(doc(db, 'pos_devices', deviceId));
+}
+
